@@ -25,6 +25,7 @@ import {
   FileSpreadsheet,
   CornerDownRight,
   RefreshCw,
+  Copy,
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { useFeedback } from '@/components/FeedbackDialog';
@@ -140,6 +141,7 @@ export default function CurriculumBuilderPage() {
   >(null);
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [copiedQuestionId, setCopiedQuestionId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -340,6 +342,84 @@ export default function CurriculumBuilderPage() {
       explanation: q.content?.explanation || '',
     });
     setActiveModal('question');
+  };
+
+  // Helper for formatting question & explanation prompt
+  const getFormattedPrompt = (
+    text: string,
+    options: string[],
+    correctAnswer: string,
+    existingExplanation?: string
+  ) => {
+    const optionsText = options
+      .map((opt, i) => `${String.fromCharCode(65 + i)}) ${opt}`)
+      .join('\n');
+
+    const normAns = (correctAnswer || '').trim();
+    let correctDisplay = normAns;
+    options.forEach((opt, i) => {
+      const letter = String.fromCharCode(65 + i);
+      const num = String(i + 1);
+      if (normAns === opt || normAns.toUpperCase() === letter || normAns === num) {
+        correctDisplay = `${letter}) ${opt}`;
+      }
+    });
+
+    const explanationPart = existingExplanation?.trim()
+      ? `${existingExplanation.trim()}\n\n(Prompt: Give me a small explanation of the correct answer.)`
+      : 'Give me a small explanation of the correct answer.';
+
+    return `Question:\n${text}\n\nOptions:\n${optionsText}\n\nCorrect Answer:\n${correctDisplay}\n\nExplanation:\n${explanationPart}`;
+  };
+
+  const handleCopyQuestionPrompt = async (
+    qId: string,
+    text: string,
+    options: string[],
+    correctAnswer: string,
+    explanation?: string
+  ) => {
+    const formatted = getFormattedPrompt(text, options, correctAnswer, explanation);
+    try {
+      await navigator.clipboard.writeText(formatted);
+      setCopiedQuestionId(qId);
+      toast(
+        'success',
+        'AI Prompt Copied!',
+        'Question, options, answer, and explanation prompt copied to clipboard.'
+      );
+      setTimeout(() => {
+        setCopiedQuestionId((curr) => (curr === qId ? null : curr));
+      }, 2000);
+    } catch (err: unknown) {
+      toast('error', 'Copy Failed', err instanceof Error ? err.message : 'Clipboard access denied.');
+    }
+  };
+
+  const copyModalQuestionPrompt = async () => {
+    const opts = [
+      addQuestionForm.option_a,
+      addQuestionForm.option_b,
+      addQuestionForm.option_c,
+      addQuestionForm.option_d,
+    ].filter(Boolean);
+
+    const letter = addQuestionForm.correct_option?.toUpperCase() || 'A';
+    let correctText = '';
+    if (letter === 'A') correctText = addQuestionForm.option_a;
+    else if (letter === 'B') correctText = addQuestionForm.option_b;
+    else if (letter === 'C') correctText = addQuestionForm.option_c;
+    else if (letter === 'D') correctText = addQuestionForm.option_d;
+
+    const correctDisplay = correctText ? `${letter}) ${correctText}` : `Option ${letter}`;
+
+    await handleCopyQuestionPrompt(
+      editingQuestionId || 'modal_question',
+      addQuestionForm.question_text,
+      opts,
+      correctDisplay,
+      addQuestionForm.explanation
+    );
   };
 
   // Save manual add / edit
@@ -1649,17 +1729,36 @@ export default function CurriculumBuilderPage() {
                               key={q.id}
                               className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:border-indigo-200 transition-colors relative group"
                             >
-                              <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1.5">
+                              <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() =>
+                                    handleCopyQuestionPrompt(
+                                      q.id,
+                                      q.content?.text || '',
+                                      q.content?.options || [],
+                                      q.correct_answer || '',
+                                      q.content?.explanation
+                                    )
+                                  }
+                                  className="text-gray-500 hover:text-indigo-600 p-1.5 bg-white rounded-md shadow-sm border border-gray-200 hover:border-indigo-300 transition-colors"
+                                  title="Copy Question & AI Prompt"
+                                >
+                                  {copiedQuestionId === q.id ? (
+                                    <Check size={15} className="text-emerald-600" />
+                                  ) : (
+                                    <Copy size={15} />
+                                  )}
+                                </button>
                                 <button
                                   onClick={() => openEditQuestionModal(q)}
-                                  className="text-gray-400 hover:text-indigo-600 p-1.5 bg-white rounded-md shadow-sm border border-gray-100 transition-colors"
+                                  className="text-gray-500 hover:text-indigo-600 p-1.5 bg-white rounded-md shadow-sm border border-gray-200 hover:border-indigo-300 transition-colors"
                                   title="Edit"
                                 >
                                   <Edit size={15} />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteQuestion(q.id)}
-                                  className="text-gray-400 hover:text-red-500 p-1.5 bg-white rounded-md shadow-sm border border-gray-100 transition-colors"
+                                  className="text-gray-500 hover:text-red-500 p-1.5 bg-white rounded-md shadow-sm border border-gray-200 hover:border-red-300 transition-colors"
                                   title="Delete"
                                 >
                                   <Trash2 size={15} />
@@ -1979,6 +2078,26 @@ export default function CurriculumBuilderPage() {
                                     </button>
                                   ) : (
                                     <>
+                                      <button
+                                        onClick={() =>
+                                          handleCopyQuestionPrompt(
+                                            row.id,
+                                            row.editedText || row.questionText,
+                                            row.editedOptions || row.options,
+                                            row.editedCorrectAnswer || row.correctAnswer,
+                                            row.editedExplanation
+                                          )
+                                        }
+                                        className="text-xs bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200 px-2.5 py-1 rounded-md font-medium flex items-center gap-1 transition-colors"
+                                        title="Copy Question & AI Prompt"
+                                      >
+                                        {copiedQuestionId === row.id ? (
+                                          <Check size={12} className="text-emerald-600" />
+                                        ) : (
+                                          <Copy size={12} />
+                                        )}
+                                        {copiedQuestionId === row.id ? 'Copied' : 'Copy'}
+                                      </button>
                                       <button
                                         onClick={() =>
                                           setEditingRowId(isBeingEdited ? null : row.id)
@@ -2301,11 +2420,28 @@ export default function CurriculumBuilderPage() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <h3 className="text-lg font-bold text-gray-900">
-                {activeModal === 'question' && editingQuestionId
-                  ? 'Edit Question'
-                  : `Create New ${activeModal}`}
-              </h3>
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-bold text-gray-900">
+                  {activeModal === 'question' && editingQuestionId
+                    ? 'Edit Question'
+                    : `Create New ${activeModal}`}
+                </h3>
+                {activeModal === 'question' && (
+                  <button
+                    type="button"
+                    onClick={copyModalQuestionPrompt}
+                    className="text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Copy Question & AI Prompt"
+                  >
+                    {copiedQuestionId === (editingQuestionId || 'modal_question') ? (
+                      <Check size={13} className="text-emerald-600" />
+                    ) : (
+                      <Copy size={13} />
+                    )}
+                    <span>{copiedQuestionId === (editingQuestionId || 'modal_question') ? 'Prompt Copied!' : 'Copy AI Prompt'}</span>
+                  </button>
+                )}
+              </div>
               <button
                 onClick={() => setActiveModal(null)}
                 className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 p-1.5 rounded-full transition-colors"
@@ -2446,9 +2582,24 @@ export default function CurriculumBuilderPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Explanation (Optional)
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Explanation (Optional)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={copyModalQuestionPrompt}
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-colors cursor-pointer"
+                        title="Copy formatted question & prompt to paste into AI for generating explanation"
+                      >
+                        {copiedQuestionId === (editingQuestionId || 'modal_question') ? (
+                          <Check size={13} className="text-emerald-600" />
+                        ) : (
+                          <Copy size={13} />
+                        )}
+                        <span>{copiedQuestionId === (editingQuestionId || 'modal_question') ? 'Prompt Copied!' : 'Copy AI Prompt'}</span>
+                      </button>
+                    </div>
                     <textarea
                       value={addQuestionForm.explanation}
                       onChange={(e) =>
@@ -2462,21 +2613,40 @@ export default function CurriculumBuilderPage() {
               )}
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
-              <button
-                onClick={() => setActiveModal(null)}
-                className="px-4 py-2 text-sm text-gray-600 font-medium hover:bg-gray-200 rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveAdd}
-                disabled={actionLoading}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm"
-              >
-                {actionLoading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                {activeModal === 'question' && editingQuestionId ? 'Update' : 'Create'}
-              </button>
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-between items-center gap-3">
+              {activeModal === 'question' ? (
+                <button
+                  type="button"
+                  onClick={copyModalQuestionPrompt}
+                  className="px-3.5 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl border border-indigo-200 flex items-center gap-2 transition-all shadow-xs cursor-pointer"
+                  title="Copy formatted question, options, correct answer, and explanation prompt"
+                >
+                  {copiedQuestionId === (editingQuestionId || 'modal_question') ? (
+                    <Check size={14} className="text-emerald-600" />
+                  ) : (
+                    <Copy size={14} />
+                  )}
+                  <span>{copiedQuestionId === (editingQuestionId || 'modal_question') ? 'Prompt Copied!' : 'Copy AI Prompt'}</span>
+                </button>
+              ) : (
+                <div />
+              )}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setActiveModal(null)}
+                  className="px-4 py-2 text-sm text-gray-600 font-medium hover:bg-gray-200 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveAdd}
+                  disabled={actionLoading}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm"
+                >
+                  {actionLoading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  {activeModal === 'question' && editingQuestionId ? 'Update' : 'Create'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
