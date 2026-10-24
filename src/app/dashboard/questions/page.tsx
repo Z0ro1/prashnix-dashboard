@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Check,
   X,
+  Edit3,
 } from 'lucide-react';
 import { useFeedback } from '@/components/FeedbackDialog';
 
@@ -96,6 +97,111 @@ export default function QuestionBankPage() {
         }
       },
     });
+  };
+
+  // Edit Question State
+  const [editingQuestion, setEditingQuestion] = useState<QuestionItem | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    text: '',
+    options: ['', '', '', ''],
+    correct_answer: '',
+    explanation: '',
+    pyq_year: '',
+    district_tag: '',
+  });
+
+  const startEditing = (q: QuestionItem) => {
+    setEditingQuestion(q);
+    const opts = [...(q.content?.options || [])];
+    while (opts.length < 4) opts.push('');
+    setEditForm({
+      text: q.content?.text || '',
+      options: opts,
+      correct_answer: q.correct_answer || opts[0] || '',
+      explanation: q.content?.explanation || '',
+      pyq_year: q.content?.pyq_year ? String(q.content.pyq_year) : '',
+      district_tag: q.content?.district_tag || '',
+    });
+  };
+
+  const handleOptionChange = (idx: number, value: string) => {
+    const oldVal = editForm.options[idx];
+    const newOptions = [...editForm.options];
+    newOptions[idx] = value;
+
+    let newCorrect = editForm.correct_answer;
+    if (newCorrect === oldVal || newCorrect === String.fromCharCode(65 + idx) || newCorrect === String(idx + 1)) {
+      newCorrect = value;
+    }
+
+    setEditForm((prev) => ({
+      ...prev,
+      options: newOptions,
+      correct_answer: newCorrect,
+    }));
+  };
+
+  const setCorrectOption = (optVal: string) => {
+    setEditForm((prev) => ({ ...prev, correct_answer: optVal }));
+  };
+
+  const saveEditing = async () => {
+    if (!editingQuestion) return;
+    if (!editForm.text.trim()) {
+      toast('error', 'Validation Error', 'Question text cannot be empty.');
+      return;
+    }
+    const cleanOptions = editForm.options.map((o) => o.trim()).filter(Boolean);
+    if (cleanOptions.length < 2) {
+      toast('error', 'Validation Error', 'Please provide at least 2 options.');
+      return;
+    }
+    if (!editForm.correct_answer.trim()) {
+      toast('error', 'Validation Error', 'Please designate a correct answer.');
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const updatedContent = {
+        ...editingQuestion.content,
+        text: editForm.text.trim(),
+        options: editForm.options.map((o) => o.trim()),
+        explanation: editForm.explanation.trim() || undefined,
+        pyq_year: editForm.pyq_year ? parseInt(editForm.pyq_year, 10) : null,
+        district_tag: editForm.district_tag.trim() || null,
+      };
+
+      const { error } = await supabase
+        .from('questions')
+        .update({
+          correct_answer: editForm.correct_answer.trim(),
+          content: updatedContent,
+        })
+        .eq('id', editingQuestion.id);
+
+      if (error) throw error;
+
+      setQuestions((prev) =>
+        prev.map((item) =>
+          item.id === editingQuestion.id
+            ? {
+                ...item,
+                correct_answer: editForm.correct_answer.trim(),
+                content: updatedContent,
+              }
+            : item
+        )
+      );
+
+      toast('success', 'Question Updated', 'Question text, options, and explanation saved.');
+      setEditingQuestion(null);
+    } catch (err: unknown) {
+      toast('error', 'Update Failed', err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   // Duplicate Clusters Calculation
@@ -326,18 +432,27 @@ export default function QuestionBankPage() {
                   </div>
 
                   {/* Actions */}
-                  <button
-                    onClick={() => handleDelete(q.id)}
-                    disabled={deletingId === q.id}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                    title="Delete Question"
-                  >
-                    {deletingId === q.id ? (
-                      <Loader2 size={18} className="animate-spin text-red-500" />
-                    ) : (
-                      <Trash2 size={18} />
-                    )}
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => startEditing(q)}
+                      className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      title="Edit Question"
+                    >
+                      <Edit3 size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(q.id)}
+                      disabled={deletingId === q.id}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete Question"
+                    >
+                      {deletingId === q.id ? (
+                        <Loader2 size={18} className="animate-spin text-red-500" />
+                      ) : (
+                        <Trash2 size={18} />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -427,6 +542,185 @@ export default function QuestionBankPage() {
                 className="px-5 py-2 bg-indigo-600 text-white font-semibold rounded-xl text-xs hover:bg-indigo-700 transition-colors"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- EDIT QUESTION MODAL --- */}
+      {editingQuestion && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between shrink-0">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Edit3 className="text-indigo-600" size={20} />
+                Edit Question
+              </h3>
+              <button
+                onClick={() => setEditingQuestion(null)}
+                className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 p-1.5 rounded-full transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-5">
+              {/* Question Text */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                  Question Text <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={editForm.text}
+                  onChange={(e) => setEditForm({ ...editForm, text: e.target.value })}
+                  placeholder="Enter question text in Marathi or English..."
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                />
+              </div>
+
+              {/* Options */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Answer Options & Correct Answer <span className="text-red-500">*</span>
+                  </label>
+                  <span className="text-[11px] text-gray-500">
+                    Click an option letter or button to set it as correct
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {editForm.options.map((opt, i) => {
+                    const optLetter = String.fromCharCode(65 + i);
+                    const optNum = String(i + 1);
+                    const normAns = (editForm.correct_answer || '').trim();
+                    const isSelected =
+                      normAns === opt ||
+                      normAns.toUpperCase() === optLetter ||
+                      normAns === optNum ||
+                      (opt !== '' && normAns.toLowerCase() === opt.trim().toLowerCase());
+
+                    return (
+                      <div
+                        key={i}
+                        className={`p-2.5 rounded-xl border transition-all flex items-center gap-3 ${
+                          isSelected
+                            ? 'bg-emerald-50/80 border-emerald-400 ring-1 ring-emerald-300'
+                            : 'bg-white border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setCorrectOption(opt || optLetter)}
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
+                            isSelected
+                              ? 'bg-emerald-600 text-white shadow-sm'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                          title="Click to mark as correct answer"
+                        >
+                          {isSelected ? <Check size={14} strokeWidth={3} /> : optLetter}
+                        </button>
+
+                        <input
+                          type="text"
+                          value={opt}
+                          onChange={(e) => handleOptionChange(i, e.target.value)}
+                          placeholder={`Option ${optLetter}`}
+                          className="flex-1 bg-transparent text-sm text-gray-900 outline-none"
+                        />
+
+                        {isSelected ? (
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-md shrink-0 flex items-center gap-1">
+                            <CheckCircle2 size={13} /> Correct Answer
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setCorrectOption(opt || optLetter)}
+                            className="text-[11px] font-medium text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 px-2 py-1 rounded transition-colors shrink-0"
+                          >
+                            Mark Correct
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Explanation */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                  Explanation / Reasoning (Optional)
+                </label>
+                <textarea
+                  rows={3}
+                  value={editForm.explanation}
+                  onChange={(e) => setEditForm({ ...editForm, explanation: e.target.value })}
+                  placeholder="Explain why this answer is correct (shown to students in the app)..."
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                />
+              </div>
+
+              {/* Metadata: PYQ Year & District */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                    PYQ Year
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.pyq_year}
+                    onChange={(e) => setEditForm({ ...editForm, pyq_year: e.target.value })}
+                    placeholder="e.g. 2023"
+                    className="w-full px-3.5 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                    District Tag
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.district_tag}
+                    onChange={(e) => setEditForm({ ...editForm, district_tag: e.target.value })}
+                    placeholder="e.g. Pune, Mumbai, Thane"
+                    className="w-full px-3.5 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setEditingQuestion(null)}
+                disabled={savingEdit}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveEditing}
+                disabled={savingEdit}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-sm flex items-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {savingEdit ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    Saving Changes...
+                  </>
+                ) : (
+                  <>
+                    <Check size={14} />
+                    Save Changes
+                  </>
+                )}
               </button>
             </div>
           </div>

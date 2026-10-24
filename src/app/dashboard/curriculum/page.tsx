@@ -1162,7 +1162,7 @@ export default function CurriculumBuilderPage() {
             Curriculum Builder
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Manage your Prashnix learning tree, units, nodes, lessons, and question banks.
+            Manage your Duolingo-style tree, units, nodes, lessons, and question banks.
           </p>
         </div>
 
