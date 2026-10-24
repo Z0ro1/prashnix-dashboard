@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Please upload a PDF file.' }, { status: 400 });
     }
 
-    const requestedModel = (formData.get('model') as string) || 'gemini-2.5-flash';
+    const requestedModel = (formData.get('model') as string) || 'gemini-3.5-flash';
     const autoCategorize = formData.get('autoCategorize') !== 'false';
     const targetUnit = (formData.get('targetUnit') as string)?.trim() || 'सामान्य ज्ञान व चालू घडामोडी';
     const targetNode = (formData.get('targetNode') as string)?.trim() || 'सर्वसाधारण सराव चाचणी';
@@ -125,22 +125,45 @@ Return a valid JSON object matching this schema:
       return res;
     };
 
-    // Try requested model first (e.g. gemini-2.5-flash), with fallback to gemini-1.5-flash
-    let geminiRes = await callGemini(requestedModel);
+    // Candidate models to try in priority order
+    const candidateModels = Array.from(
+      new Set([
+        requestedModel,
+        'gemini-3.5-flash',
+        'gemini-3-flash-preview',
+        'gemini-3.5-flash-lite',
+        'gemini-flash-latest',
+      ])
+    );
 
-    if (!geminiRes.ok && requestedModel !== 'gemini-1.5-flash') {
-      console.warn(`Model ${requestedModel} failed with ${geminiRes.status}. Retrying with gemini-1.5-flash...`);
-      geminiRes = await callGemini('gemini-1.5-flash');
+    let geminiRes: Response | null = null;
+    let lastError = '';
+
+    for (const modelToTry of candidateModels) {
+      try {
+        const res = await callGemini(modelToTry);
+        if (res.ok) {
+          geminiRes = res;
+          break;
+        } else {
+          const errText = await res.text();
+          let parsedErr: any = null;
+          try {
+            parsedErr = JSON.parse(errText);
+          } catch {}
+          lastError = parsedErr?.error?.message || errText;
+          console.warn(`Model ${modelToTry} returned ${res.status}: ${lastError}. Retrying next candidate...`);
+        }
+      } catch (e: any) {
+        lastError = e?.message || 'Network error';
+      }
     }
 
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      let parsedErr: any = null;
-      try {
-        parsedErr = JSON.parse(errText);
-      } catch {}
-      const errMsg = parsedErr?.error?.message || errText || `Gemini API returned status ${geminiRes.status}`;
-      return NextResponse.json({ error: errMsg }, { status: geminiRes.status });
+    if (!geminiRes || !geminiRes.ok) {
+      return NextResponse.json(
+        { error: lastError || 'All candidate Gemini models failed to process the request.' },
+        { status: 502 }
+      );
     }
 
     const json = await geminiRes.json();

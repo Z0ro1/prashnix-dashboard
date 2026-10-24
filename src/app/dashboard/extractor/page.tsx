@@ -50,7 +50,7 @@ interface ExtractedQuestion {
 
 export default function PdfExtractorPage() {
   const router = useRouter();
-  const { toast, customAlert, confirm } = useFeedback();
+  const { toast, alert: customAlert, confirm } = useFeedback();
 
   // Gemini API Key management
   const [apiKey, setApiKey] = useState<string>('');
@@ -59,7 +59,7 @@ export default function PdfExtractorPage() {
 
   // Upload & Config State
   const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [model, setModel] = useState<string>('gemini-2.5-flash');
+  const [model, setModel] = useState<string>('gemini-3.5-flash');
   const [autoCategorize, setAutoCategorize] = useState<boolean>(true);
   const [targetUnit, setTargetUnit] = useState<string>('सामान्य ज्ञान व चालू घडामोडी');
   const [targetNode, setTargetNode] = useState<string>('सर्वसाधारण सराव चाचणी');
@@ -542,8 +542,9 @@ export default function PdfExtractorPage() {
                   onChange={(e) => setModel(e.target.value)}
                   className="w-full px-2.5 py-1.5 bg-gray-50 border border-gray-300 rounded-lg text-xs font-medium text-gray-700"
                 >
-                  <option value="gemini-2.5-flash">Gemini 2.5 Flash (Fastest, High Marathi Accuracy)</option>
-                  <option value="gemini-1.5-flash">Gemini 1.5 Flash (Standard Fallback)</option>
+                  <option value="gemini-3.5-flash">Gemini 3.5 Flash (Flagship, High Accuracy)</option>
+                  <option value="gemini-3-flash-preview">Gemini 3 Flash Preview (Ultra Fast)</option>
+                  <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (Lightweight)</option>
                 </select>
               </div>
             </div>
