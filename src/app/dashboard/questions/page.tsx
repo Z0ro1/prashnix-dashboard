@@ -1,0 +1,437 @@
+'use client';
+
+import { useEffect, useState, useMemo } from 'react';
+import { supabase } from '@/lib/supabase';
+import {
+  Search,
+  HelpCircle,
+  Trash2,
+  Calendar,
+  MapPin,
+  CheckCircle2,
+  Loader2,
+  BookOpen,
+  AlertTriangle,
+  RefreshCw,
+  Check,
+  X,
+} from 'lucide-react';
+import { useFeedback } from '@/components/FeedbackDialog';
+
+interface QuestionItem {
+  id: string;
+  lesson_id: string | null;
+  display_id: string;
+  question_type: string;
+  correct_answer: string;
+  created_at: string;
+  content: {
+    text: string;
+    options: string[];
+    explanation?: string;
+    pyq_year?: number | null;
+    district_tag?: string | null;
+  };
+}
+
+function normalizeText(text: string): string {
+  return (text || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\u200B-\u200D\uFEFF]+/g, ' ')
+    .replace(/[?!.,:;।॥]+$/g, '')
+    .trim();
+}
+
+export default function QuestionBankPage() {
+  const { toast, confirm } = useFeedback();
+  const [questions, setQuestions] = useState<QuestionItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Duplicate Scanner State
+  const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
+  const [showScanModal, setShowScanModal] = useState(false);
+
+  useEffect(() => {
+    fetchQuestions();
+  }, []);
+
+  const fetchQuestions = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('questions')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setQuestions(data || []);
+    } catch (err: unknown) {
+      console.error('Error fetching questions:', err instanceof Error ? err.message : err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    confirm({
+      title: 'Delete Question?',
+      message: 'Are you sure you want to permanently delete this question from the Question Bank? This action cannot be undone.',
+      confirmText: 'Delete Question',
+      cancelText: 'Cancel',
+      isDestructive: true,
+      onConfirm: async () => {
+        setDeletingId(id);
+        try {
+          const { error } = await supabase.from('questions').delete().eq('id', id);
+          if (error) throw error;
+          setQuestions((prev) => prev.filter((q) => q.id !== id));
+          toast('success', 'Question Deleted', 'The question has been removed from the database.');
+        } catch (err: unknown) {
+          toast('error', 'Delete Failed', err instanceof Error ? err.message : 'Unknown error');
+        } finally {
+          setDeletingId(null);
+        }
+      },
+    });
+  };
+
+  // Duplicate Clusters Calculation
+  const duplicateClusters = useMemo(() => {
+    const groups = new Map<string, QuestionItem[]>();
+    for (const q of questions) {
+      const norm = normalizeText(q.content?.text || '');
+      if (!norm) continue;
+      const list = groups.get(norm) || [];
+      list.push(q);
+      groups.set(norm, list);
+    }
+
+    // Only keep groups with > 1 question
+    const dupes: { normalizedText: string; items: QuestionItem[] }[] = [];
+    for (const [norm, items] of groups.entries()) {
+      if (items.length > 1) {
+        dupes.push({ normalizedText: norm, items });
+      }
+    }
+    return dupes;
+  }, [questions]);
+
+  // Set of IDs that are duplicate questions
+  const duplicateIdSet = useMemo(() => {
+    const ids = new Set<string>();
+    for (const cluster of duplicateClusters) {
+      for (const item of cluster.items) {
+        ids.add(item.id);
+      }
+    }
+    return ids;
+  }, [duplicateClusters]);
+
+  const filtered = useMemo(() => {
+    return questions.filter((q) => {
+      if (showDuplicatesOnly && !duplicateIdSet.has(q.id)) {
+        return false;
+      }
+      const text = (q.content?.text || '').toLowerCase();
+      const explanation = (q.content?.explanation || '').toLowerCase();
+      const district = (q.content?.district_tag || '').toLowerCase();
+      const s = search.toLowerCase();
+      return text.includes(s) || explanation.includes(s) || district.includes(s);
+    });
+  }, [questions, search, showDuplicatesOnly, duplicateIdSet]);
+
+  return (
+    <div className="max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <HelpCircle className="text-indigo-600" /> Question Bank
+          </h2>
+          <p className="text-gray-600 mt-1">
+            Browse, search, and audit all {questions.length} questions in the repository.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {duplicateClusters.length > 0 && (
+            <button
+              onClick={() => setShowDuplicatesOnly(!showDuplicatesOnly)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all ${
+                showDuplicatesOnly
+                  ? 'bg-amber-600 text-white shadow-md'
+                  : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+              }`}
+            >
+              <AlertTriangle size={15} />
+              {showDuplicatesOnly
+                ? 'Showing Duplicates (Click to Show All)'
+                : `Filter Duplicates (${duplicateClusters.length} clusters)`}
+            </button>
+          )}
+
+          <button
+            onClick={() => setShowScanModal(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-sm transition-colors"
+          >
+            <RefreshCw size={14} />
+            Scan Database Duplicates
+          </button>
+        </div>
+      </div>
+
+      {/* Duplicate Alert Banner if any exist */}
+      {duplicateClusters.length > 0 && !showDuplicatesOnly && (
+        <div className="mb-6 bg-amber-50/80 border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 text-amber-700 rounded-xl">
+              <AlertTriangle size={20} />
+            </div>
+            <div>
+              <div className="font-bold text-amber-900 text-sm">
+                {duplicateClusters.length} Duplicate Question Groups Detected
+              </div>
+              <div className="text-xs text-amber-700 mt-0.5">
+                Some questions appear in multiple lessons or have been duplicated. You can clean them up directly.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowDuplicatesOnly(true)}
+            className="text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 px-3.5 py-1.5 rounded-lg transition-colors shrink-0 shadow-sm"
+          >
+            Review Duplicates
+          </button>
+        </div>
+      )}
+
+      {/* Search Bar */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex items-center gap-3">
+        <Search className="text-gray-400 shrink-0" size={20} />
+        <input
+          type="text"
+          placeholder="Search by question text, explanation, or district..."
+          className="flex-1 outline-none text-gray-700 bg-transparent text-sm"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 bg-gray-100 rounded"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Questions List */}
+      {loading ? (
+        <div className="bg-white p-12 rounded-xl border border-gray-100 flex items-center justify-center text-gray-500">
+          <Loader2 className="animate-spin text-indigo-600 mr-2" /> Loading question bank...
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white p-12 rounded-xl border border-gray-100 text-center text-gray-500 text-sm">
+          No questions found matching your filter.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filtered.map((q, idx) => {
+            const isDup = duplicateIdSet.has(q.id);
+
+            return (
+              <div
+                key={q.id}
+                className={`bg-white p-5 rounded-xl border shadow-sm transition-colors ${
+                  isDup ? 'border-amber-300 ring-1 ring-amber-200' : 'border-gray-100 hover:border-indigo-100'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span className="text-xs font-mono font-semibold px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
+                        #{idx + 1}
+                      </span>
+                      {isDup && (
+                        <span className="text-xs flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-semibold">
+                          <AlertTriangle size={12} /> Duplicate Question
+                        </span>
+                      )}
+                      {q.content?.pyq_year && (
+                        <span className="text-xs flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 rounded font-medium">
+                          <Calendar size={12} /> {q.content.pyq_year}
+                        </span>
+                      )}
+                      {q.content?.district_tag && (
+                        <span className="text-xs flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-medium">
+                          <MapPin size={12} /> {q.content.district_tag}
+                        </span>
+                      )}
+                      {q.lesson_id ? (
+                        <span className="text-xs flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded font-medium">
+                          <BookOpen size={12} /> Linked to Lesson
+                        </span>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded">
+                          Global Pool
+                        </span>
+                      )}
+                    </div>
+
+                    <h3 className="text-gray-900 font-semibold text-base mb-3 leading-relaxed">
+                      {q.content?.text || 'No question text'}
+                    </h3>
+
+                    {/* Options */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                      {(q.content?.options || []).map((opt, i) => {
+                        const optLetter = String.fromCharCode(65 + i);
+                        const optNum = String(i + 1);
+                        const normAns = (q.correct_answer || '').trim();
+                        const isCorrect =
+                          normAns === opt ||
+                          normAns.toUpperCase() === optLetter ||
+                          normAns === optNum ||
+                          (normAns !== '' && opt !== '' && normAns.toLowerCase() === opt.trim().toLowerCase());
+                        return (
+                          <div
+                            key={i}
+                            className={`p-2.5 rounded-lg text-xs border flex items-center justify-between ${
+                              isCorrect
+                                ? 'bg-emerald-50/70 border-emerald-300 text-emerald-900 font-medium'
+                                : 'bg-gray-50 border-gray-100 text-gray-700'
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-gray-400">
+                                {optLetter}.
+                              </span>
+                              {opt}
+                            </span>
+                            {isCorrect && <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {q.content?.explanation && (
+                      <div className="p-3 bg-indigo-50/50 rounded-lg text-xs text-indigo-900 border border-indigo-100/60">
+                        <span className="font-semibold text-indigo-700">Explanation: </span>
+                        {q.content.explanation}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <button
+                    onClick={() => handleDelete(q.id)}
+                    disabled={deletingId === q.id}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                    title="Delete Question"
+                  >
+                    {deletingId === q.id ? (
+                      <Loader2 size={18} className="animate-spin text-red-500" />
+                    ) : (
+                      <Trash2 size={18} />
+                    )}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* --- DUPLICATE AUDIT MODAL --- */}
+      {showScanModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between shrink-0">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <AlertTriangle className="text-amber-500" size={20} />
+                Database Duplicate Scanner
+              </h3>
+              <button
+                onClick={() => setShowScanModal(false)}
+                className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 p-1.5 rounded-full transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {duplicateClusters.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <CheckCircle2 size={48} className="mx-auto text-emerald-500 mb-2" />
+                  <p className="font-bold text-gray-800 text-base">All Questions Are Unique!</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    No duplicate questions were found across any lessons in the database.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="text-xs text-gray-600">
+                    Found <strong>{duplicateClusters.length}</strong> questions that appear more than
+                    once in Supabase. You can remove redundant copies below:
+                  </div>
+
+                  {duplicateClusters.map((cluster, cIdx) => (
+                    <div
+                      key={cIdx}
+                      className="p-4 border border-amber-200 bg-amber-50/30 rounded-xl space-y-3"
+                    >
+                      <div className="font-bold text-gray-900 text-sm">
+                        "{cluster.items[0]?.content?.text}"
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Appears in <strong>{cluster.items.length}</strong> instances:
+                      </div>
+
+                      <div className="space-y-2">
+                        {cluster.items.map((item, iIdx) => (
+                          <div
+                            key={item.id}
+                            className="bg-white p-3 rounded-lg border border-gray-200 flex items-center justify-between text-xs"
+                          >
+                            <div>
+                              <div className="font-medium text-gray-800">
+                                Copy #{iIdx + 1} • ID: {item.id.substring(0, 8)}...
+                              </div>
+                              <div className="text-gray-400 text-[11px] mt-0.5">
+                                Created: {new Date(item.created_at).toLocaleDateString()}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleDelete(item.id)}
+                              disabled={deletingId === item.id}
+                              className="text-red-600 hover:bg-red-50 px-2.5 py-1.5 rounded-md font-semibold text-xs flex items-center gap-1 transition-colors"
+                            >
+                              <Trash2 size={13} />
+                              Delete this copy
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setShowScanModal(false)}
+                className="px-5 py-2 bg-indigo-600 text-white font-semibold rounded-xl text-xs hover:bg-indigo-700 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
