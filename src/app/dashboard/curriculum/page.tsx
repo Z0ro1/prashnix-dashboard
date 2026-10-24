@@ -26,7 +26,9 @@ import {
   CornerDownRight,
   RefreshCw,
   Copy,
+  FileText,
 } from 'lucide-react';
+import Link from 'next/link';
 import Papa from 'papaparse';
 import { useFeedback } from '@/components/FeedbackDialog';
 
@@ -192,6 +194,25 @@ export default function CurriculumBuilderPage() {
 
   useEffect(() => {
     fetchData();
+
+    // Check for pending staged rows from AI PDF Extractor
+    if (typeof window !== 'undefined') {
+      const pendingStaged = sessionStorage.getItem('prashnix_pending_staged_import');
+      if (pendingStaged) {
+        try {
+          const parsed = JSON.parse(pendingStaged);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            sessionStorage.removeItem('prashnix_pending_staged_import');
+            setStagedRows(parsed);
+            setIsMegaCurriculum(true);
+            setStagingTab('hierarchy');
+            setShowStagingModal(true);
+          }
+        } catch (e) {
+          console.error('Failed to load pending staged questions:', e);
+        }
+      }
+    }
   }, []);
 
   const fetchData = async () => {
@@ -1609,13 +1630,23 @@ export default function CurriculumBuilderPage() {
             Rebalance to 5 Lessons
           </button>
 
+          {/* Extract from PDF (AI) Button */}
+          <Link
+            href="/dashboard/extractor"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-semibold text-sm shadow-sm"
+            title="Extract questions, options, and explanations directly from PDF exam papers"
+          >
+            <Sparkles size={16} />
+            Extract from PDF (AI)
+          </Link>
+
           {/* Automated Mega Import Button */}
           <button
             onClick={() => bulkFileInputRef.current?.click()}
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-semibold text-sm shadow-sm"
-            title="Import an entire curriculum from a single CSV with 5-6 lessons per node"
+            title="Import an entire curriculum from a single CSV with strict 25 questions per lesson"
           >
-            <Sparkles size={16} />
+            <FileSpreadsheet size={16} />
             Auto-Build Curriculum (CSV)
           </button>
 

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { LogOut, LayoutDashboard, Users, HelpCircle, Trophy, BookOpen } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, HelpCircle, Trophy, BookOpen, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { FeedbackProvider } from '@/components/FeedbackDialog';
 
@@ -55,7 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="w-64 bg-indigo-900 text-white flex flex-col">
           <div className="p-6">
             <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Trophy className="text-yellow-400" /> Streak
+              <Trophy className="text-yellow-400" /> Prashnix
             </h1>
             <p className="text-indigo-300 text-sm mt-1">Admin Portal</p>
           </div>
@@ -71,6 +71,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Link>
             <Link href="/dashboard/curriculum" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard/curriculum' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
               <BookOpen size={20} /> Curriculum Builder
+            </Link>
+            <Link href="/dashboard/extractor" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard/extractor' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
+              <Sparkles size={20} className="text-yellow-400" /> AI PDF Extractor
             </Link>
           </nav>
           <div className="p-4 border-t border-indigo-800">
