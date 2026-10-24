@@ -1243,23 +1243,36 @@ export default function CurriculumBuilderPage() {
     }
 
     setActionLoading(true);
-    setImportProgress('Initializing automated hierarchy generation...');
+    setImportProgress('Fetching latest curriculum state from database...');
 
     try {
+      // 0. FETCH FRESH HIERARCHY DIRECTLY FROM SUPABASE TO PREVENT OUT-OF-SYNC CONFLICTS
+      const [unitsRes, nodesRes, lessonsRes] = await Promise.all([
+        supabase.from('units').select('*').order('order_index', { ascending: true }),
+        supabase.from('nodes').select('*').order('order_index', { ascending: true }),
+        supabase.from('lessons').select('*').order('order_index', { ascending: true }),
+      ]);
+
+      if (unitsRes.error) throw unitsRes.error;
+      if (nodesRes.error) throw nodesRes.error;
+      if (lessonsRes.error) throw lessonsRes.error;
+
+      let currentUnits = unitsRes.data ? [...unitsRes.data] : [];
+      let currentNodes = nodesRes.data ? [...nodesRes.data] : [];
+      let currentLessons = lessonsRes.data ? [...lessonsRes.data] : [];
+
+      const normalize = (s?: string) => (s || '').trim().toLowerCase();
+
       if (isMegaCurriculum) {
         // --- 1. RESOLVE / CREATE UNITS ---
-        setImportProgress('Mapping and creating Units...');
-        const uniqueUnitTitles = Array.from(new Set(rowsToImport.map((r) => r.unitTitle)));
+        setImportProgress('Mapping and resolving Units...');
+        const uniqueUnitTitles = Array.from(new Set(rowsToImport.map((r) => (r.unitTitle || '').trim()).filter(Boolean)));
         const unitIdMap = new Map<string, { id: string; display_id: string }>();
 
-        let currentUnits = [...units];
-        let maxUnitOrder =
-          currentUnits.length > 0 ? Math.max(...currentUnits.map((u) => u.order_index)) : 0;
-
         for (const uTitle of uniqueUnitTitles) {
-          const sampleRow = rowsToImport.find((r) => r.unitTitle === uTitle);
+          const sampleRow = rowsToImport.find((r) => normalize(r.unitTitle) === normalize(uTitle));
           const existingUnit = currentUnits.find(
-            (u) => u.title.toLowerCase() === uTitle.toLowerCase()
+            (u) => normalize(u.title) === normalize(uTitle)
           );
 
           if (existingUnit) {
@@ -1268,8 +1281,15 @@ export default function CurriculumBuilderPage() {
               display_id: existingUnit.display_id,
             });
           } else {
+            let maxUnitOrder =
+              currentUnits.length > 0 ? Math.max(...currentUnits.map((u) => u.order_index || 0)) : 0;
             maxUnitOrder += 1;
-            const newDisplayId = maxUnitOrder.toString().padStart(2, '0');
+            let newDisplayId = maxUnitOrder.toString().padStart(2, '0');
+            while (currentUnits.some((u) => u.display_id === newDisplayId)) {
+              maxUnitOrder += 1;
+              newDisplayId = maxUnitOrder.toString().padStart(2, '0');
+            }
+
             const { data: newUnit, error } = await supabase
               .from('units')
               .insert({
@@ -1288,23 +1308,21 @@ export default function CurriculumBuilderPage() {
         }
 
         // --- 2. RESOLVE / CREATE NODES ---
-        setImportProgress('Mapping and creating Nodes...');
+        setImportProgress('Mapping and resolving Nodes...');
         const uniqueNodes = Array.from(
-          new Set(rowsToImport.map((r) => `${r.unitTitle}:::${r.nodeTitle}`))
+          new Set(rowsToImport.map((r) => `${(r.unitTitle || '').trim()}:::${(r.nodeTitle || '').trim()}`))
         );
         const nodeIdMap = new Map<string, { id: string; display_id: string }>();
-
-        let currentNodes = [...nodes];
 
         for (const composite of uniqueNodes) {
           const [uTitle, nTitle] = composite.split(':::');
           const unitInfo = unitIdMap.get(uTitle)!;
           const sampleRow = rowsToImport.find(
-            (r) => r.unitTitle === uTitle && r.nodeTitle === nTitle
+            (r) => normalize(r.unitTitle) === normalize(uTitle) && normalize(r.nodeTitle) === normalize(nTitle)
           );
 
           const existingNode = currentNodes.find(
-            (n) => n.unit_id === unitInfo.id && n.title.toLowerCase() === nTitle.toLowerCase()
+            (n) => n.unit_id === unitInfo.id && normalize(n.title) === normalize(nTitle)
           );
 
           if (existingNode) {
@@ -1314,9 +1332,13 @@ export default function CurriculumBuilderPage() {
             });
           } else {
             const unitNodes = currentNodes.filter((n) => n.unit_id === unitInfo.id);
-            const nextNodeOrder =
-              unitNodes.length > 0 ? Math.max(...unitNodes.map((n) => n.order_index)) + 1 : 1;
-            const newDisplayId = `${unitInfo.display_id}.${nextNodeOrder}`;
+            let nextNodeOrder =
+              unitNodes.length > 0 ? Math.max(...unitNodes.map((n) => n.order_index || 0)) + 1 : 1;
+            let newDisplayId = `${unitInfo.display_id}.${nextNodeOrder}`;
+            while (currentNodes.some((n) => n.display_id === newDisplayId)) {
+              nextNodeOrder += 1;
+              newDisplayId = `${unitInfo.display_id}.${nextNodeOrder}`;
+            }
 
             const { data: newNode, error } = await supabase
               .from('nodes')
@@ -1343,10 +1365,9 @@ export default function CurriculumBuilderPage() {
         setImportProgress(
           hierarchyMode === 'auto_partition'
             ? `Allocating questions into ${lessonsPerNode} lessons per node...`
-            : 'Mapping and creating Lessons from CSV...'
+            : 'Mapping and resolving Lessons from CSV...'
         );
 
-        let currentLessons = [...lessons];
         const allQuestionPayloads: any[] = [];
         let totalGeneratedLessons = 0;
         let totalAbortedQuestionsCount = 0;
@@ -1355,7 +1376,7 @@ export default function CurriculumBuilderPage() {
           const [uTitle, nTitle] = composite.split(':::');
           const nodeInfo = nodeIdMap.get(composite)!;
           const nodeRows = rowsToImport.filter(
-            (r) => r.unitTitle === uTitle && r.nodeTitle === nTitle
+            (r) => normalize(r.unitTitle) === normalize(uTitle) && normalize(r.nodeTitle) === normalize(nTitle)
           );
 
           const { lessons: partitions, abortedRows } = partitionNodeQuestions(
@@ -1368,16 +1389,20 @@ export default function CurriculumBuilderPage() {
 
           for (const p of partitions) {
             let lessonRecord = currentLessons.find(
-              (l) => l.node_id === nodeInfo.id && l.title.toLowerCase() === p.lessonTitle.toLowerCase()
+              (l) => l.node_id === nodeInfo.id && normalize(l.title) === normalize(p.lessonTitle)
             );
 
             if (!lessonRecord) {
               const nodeLessons = currentLessons.filter((l) => l.node_id === nodeInfo.id);
-              const nextLessonOrder =
+              let nextLessonOrder =
                 nodeLessons.length > 0
-                  ? Math.max(...nodeLessons.map((l) => l.order_index)) + 1
+                  ? Math.max(...nodeLessons.map((l) => l.order_index || 0)) + 1
                   : p.lessonIndex;
-              const newDisplayId = `${nodeInfo.display_id}.${nextLessonOrder}`;
+              let newDisplayId = `${nodeInfo.display_id}.${nextLessonOrder}`;
+              while (currentLessons.some((l) => l.display_id === newDisplayId)) {
+                nextLessonOrder += 1;
+                newDisplayId = `${nodeInfo.display_id}.${nextLessonOrder}`;
+              }
 
               const { data: newLesson, error } = await supabase
                 .from('lessons')
@@ -1395,22 +1420,29 @@ export default function CurriculumBuilderPage() {
               currentLessons.push(newLesson);
             }
 
-            for (const r of p.rows) {
+            p.rows.forEach((r, idx) => {
+              const qNum = idx + 1;
+              const uniqueSuffix = `${Date.now().toString(36)}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
+              const qText = r.editedText || r.questionText;
+              const qOptions = (r.editedOptions && r.editedOptions.length > 0 ? r.editedOptions : r.options).filter(Boolean);
+              const qAns = (r.editedCorrectAnswer || r.correctAnswer || qOptions[0] || 'A').trim();
+              const qExp = r.editedExplanation || r.explanation || '';
+
               allQuestionPayloads.push({
                 lesson_id: lessonRecord.id,
-                display_id: `${lessonRecord.display_id}.${Date.now() + Math.random()}`,
+                display_id: `${lessonRecord.display_id}.${qNum}_${uniqueSuffix}`,
                 is_global_pool: false,
                 question_type: 'multiple_choice',
                 content: {
-                  text: r.questionText,
-                  options: r.options,
-                  explanation: r.explanation,
-                  pyq_year: r.pyqYear,
-                  district_tag: r.districtTag,
+                  text: qText,
+                  options: qOptions,
+                  explanation: qExp,
+                  pyq_year: r.pyqYear || '2026',
+                  district_tag: r.districtTag || '',
                 },
-                correct_answer: r.correctAnswer,
+                correct_answer: qAns,
               });
-            }
+            });
           }
         }
 
@@ -1449,25 +1481,34 @@ export default function CurriculumBuilderPage() {
       } else {
         // Single Lesson Import
         if (!importLessonId) throw new Error('Target lesson not selected.');
-        const parentLesson = lessons.find((l) => l.id === importLessonId);
+        const parentLesson = currentLessons.find((l) => l.id === importLessonId) || lessons.find((l) => l.id === importLessonId);
         if (!parentLesson) throw new Error('Target lesson not found.');
 
         setImportProgress(`Importing ${rowsToImport.length} questions into "${parentLesson.title}"...`);
 
-        const questionPayloads = rowsToImport.map((r) => ({
-          lesson_id: parentLesson.id,
-          display_id: `${parentLesson.display_id}.${Date.now() + Math.random()}`,
-          is_global_pool: false,
-          question_type: 'multiple_choice',
-          content: {
-            text: r.questionText,
-            options: r.options,
-            explanation: r.explanation,
-            pyq_year: r.pyqYear,
-            district_tag: r.districtTag,
-          },
-          correct_answer: r.correctAnswer,
-        }));
+        const questionPayloads = rowsToImport.map((r, idx) => {
+          const qNum = idx + 1;
+          const uniqueSuffix = `${Date.now().toString(36)}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
+          const qText = r.editedText || r.questionText;
+          const qOptions = (r.editedOptions && r.editedOptions.length > 0 ? r.editedOptions : r.options).filter(Boolean);
+          const qAns = (r.editedCorrectAnswer || r.correctAnswer || qOptions[0] || 'A').trim();
+          const qExp = r.editedExplanation || r.explanation || '';
+
+          return {
+            lesson_id: parentLesson.id,
+            display_id: `${parentLesson.display_id}.${qNum}_${uniqueSuffix}`,
+            is_global_pool: false,
+            question_type: 'multiple_choice',
+            content: {
+              text: qText,
+              options: qOptions,
+              explanation: qExp,
+              pyq_year: r.pyqYear || '2026',
+              district_tag: r.districtTag || '',
+            },
+            correct_answer: qAns,
+          };
+        });
 
         const CHUNK_SIZE = 50;
         for (let i = 0; i < questionPayloads.length; i += CHUNK_SIZE) {
@@ -1484,15 +1525,33 @@ export default function CurriculumBuilderPage() {
       setStagedRows([]);
 
       // Auto select the first lesson if mega curriculum
-      if (isMegaCurriculum && lessons.length > 0) {
-        selectItem('lesson', lessons[0]);
+      if (isMegaCurriculum && currentLessons.length > 0) {
+        selectItem('lesson', currentLessons[0]);
       } else if (importLessonId) {
-        const updatedLesson = lessons.find((l) => l.id === importLessonId);
+        const updatedLesson = currentLessons.find((l) => l.id === importLessonId);
         if (updatedLesson) selectItem('lesson', updatedLesson);
       }
     } catch (err: unknown) {
-      customAlert('Build Failed', err instanceof Error ? err.message : 'Unknown error', 'error');
+      console.error('Build Curriculum error:', err);
+      const extractError = (e: any): string => {
+        if (!e) return 'Unknown error occurred';
+        if (typeof e === 'string') return e;
+        if (e.message) {
+          let msg = e.message;
+          if (e.details) msg += ` (${e.details})`;
+          if (e.hint) msg += ` [Hint: ${e.hint}]`;
+          return msg;
+        }
+        if (e.error_description) return e.error_description;
+        try {
+          return JSON.stringify(e);
+        } catch {
+          return String(e);
+        }
+      };
+      customAlert('Build Failed', extractError(err), 'error');
     } finally {
+      await fetchData();
       setActionLoading(false);
       setImportProgress(null);
     }
