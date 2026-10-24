@@ -191,12 +191,20 @@ export default function CurriculumBuilderPage() {
   // Auto-partition configuration (5 to 6 lessons per node)
   const [hierarchyMode, setHierarchyMode] = useState<'auto_partition' | 'strict_csv'>('auto_partition');
   const [lessonsPerNode, setLessonsPerNode] = useState<number>(5);
+  const [detectedExamTitle, setDetectedExamTitle] = useState<string>('');
+  const [consolidateCustomTitle, setConsolidateCustomTitle] = useState<string>('');
 
   useEffect(() => {
     fetchData();
 
     // Check for pending staged rows from AI PDF Extractor
     if (typeof window !== 'undefined') {
+      const pendingExam = sessionStorage.getItem('prashnix_pending_exam_title');
+      if (pendingExam) {
+        setDetectedExamTitle(pendingExam);
+        setConsolidateCustomTitle(pendingExam);
+      }
+
       const pendingStaged = sessionStorage.getItem('prashnix_pending_staged_import');
       if (pendingStaged) {
         try {
@@ -523,6 +531,53 @@ export default function CurriculumBuilderPage() {
     const abortedRows = nodeQuestions.slice(totalAllocated);
 
     return { lessons, abortedRows };
+  };
+
+  // Consolidate staged questions into 1 Exam Node or by Subject Unit
+  const handleConsolidateQuestions = (mode: 'exam' | 'unit') => {
+    if (stagedRows.length === 0) return;
+
+    if (mode === 'exam') {
+      const examName =
+        consolidateCustomTitle.trim() ||
+        detectedExamTitle.trim() ||
+        (stagedRows[0]?.districtTag
+          ? `${stagedRows[0]?.districtTag} पोलीस भरती सराव पेपर ${stagedRows[0]?.pyqYear || ''}`.trim()
+          : stagedRows[0]?.nodeTitle || 'पोलीस भरती संपूर्ण सराव प्रश्नपत्रिका');
+
+      const examUnit = 'पोलीस भरती PYQ प्रश्नपत्रिका';
+
+      setStagedRows((prev) =>
+        prev.map((r) => ({
+          ...r,
+          unitTitle: examUnit,
+          nodeTitle: examName,
+          status: r.status === 'skipped' ? 'skipped' : 'valid',
+        }))
+      );
+
+      const approvedCount = stagedRows.filter((r) => r.status !== 'skipped').length;
+      const fullLessons = Math.floor(approvedCount / 25);
+      toast(
+        'success',
+        'Consolidated into 1 Exam Node!',
+        `All ${approvedCount} questions merged into "${examName}" under Unit "${examUnit}" (forms ${fullLessons} complete 25-question lessons).`
+      );
+    } else {
+      // Consolidate by Unit: combine all questions in each unit into a single comprehensive node
+      setStagedRows((prev) =>
+        prev.map((r) => ({
+          ...r,
+          nodeTitle: `${r.unitTitle} - संपूर्ण सराव संच`,
+          status: r.status === 'skipped' ? 'skipped' : 'valid',
+        }))
+      );
+      toast(
+        'success',
+        'Consolidated by Unit!',
+        'Questions inside each subject unit were combined into comprehensive 25-question lessons.'
+      );
+    }
   };
 
   // Rebalance a single node into 5 or 6 lessons
@@ -2394,6 +2449,69 @@ export default function CurriculumBuilderPage() {
                       ))}
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Questions Consolidation Banner for Exam Papers & Leftover Questions */}
+            {isMegaCurriculum && (hierarchyPreviewStats.abortedQuestionsCount > 0 || hierarchyPreviewStats.questionsCount === 0) && (
+              <div className="mx-6 mt-3 p-4 bg-amber-50/90 border-2 border-amber-300 rounded-2xl shadow-sm text-xs space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className="p-2 bg-amber-100 text-amber-800 rounded-xl shrink-0 mt-0.5">
+                      <AlertTriangle size={18} />
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-amber-950 text-sm">
+                        {hierarchyPreviewStats.questionsCount === 0
+                          ? '⚠️ Action Required: 0 Lessons Ready (All questions currently aborted)'
+                          : `⚠️ ${hierarchyPreviewStats.abortedQuestionsCount} Leftover Questions Excluded`}
+                      </div>
+                      <p className="text-amber-800 mt-1 leading-relaxed">
+                        Prashnix enforces a strict <strong>25 questions per lesson</strong> rule. Questions are currently spread across micro-nodes with fewer than 25 questions each, so they cannot form complete lessons. Consolidate them below to form full 25-question lessons immediately!
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="shrink-0 text-[10px] font-bold px-2.5 py-1 bg-amber-200/90 text-amber-900 rounded-full font-mono uppercase tracking-wider">
+                    Strict 25 Qs/Lesson
+                  </span>
+                </div>
+
+                {/* Consolidation Action Controls */}
+                <div className="pt-2 border-t border-amber-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-1">
+                    <label className="font-bold text-amber-950 shrink-0 text-[11px]">Exam Paper Node Name:</label>
+                    <input
+                      type="text"
+                      value={consolidateCustomTitle}
+                      onChange={(e) => setConsolidateCustomTitle(e.target.value)}
+                      placeholder={detectedExamTitle || 'उदा. SRPF गट २ पुणे पोलीस भरती पेपर २०२४'}
+                      className="px-3 py-1.5 bg-white border border-amber-300 rounded-xl text-xs font-semibold text-gray-800 w-full max-w-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-2xs"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleConsolidateQuestions('unit')}
+                      className="px-3.5 py-2 bg-white hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs"
+                      title="Combines questions within each subject unit into comprehensive 25-question lessons"
+                    >
+                      <Layers size={14} className="text-amber-700" />
+                      Consolidate by Unit
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleConsolidateQuestions('exam')}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+                      title="Merges all questions into 1 Exam Node (forms complete 25-question lessons)"
+                    >
+                      <Sparkles size={14} />
+                      ✨ Consolidate into 1 Exam Node ({Math.floor(stagedRows.filter((r) => r.status !== 'skipped').length / 25)} Lessons x 25 Qs)
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

@@ -60,9 +60,9 @@ export default function PdfExtractorPage() {
   // Upload & Config State
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [model, setModel] = useState<string>('gemini-3.5-flash');
-  const [autoCategorize, setAutoCategorize] = useState<boolean>(true);
-  const [targetUnit, setTargetUnit] = useState<string>('सामान्य ज्ञान व चालू घडामोडी');
-  const [targetNode, setTargetNode] = useState<string>('सर्वसाधारण सराव चाचणी');
+  const [categorizeMode, setCategorizeMode] = useState<'exam_paper' | 'auto_syllabus' | 'manual'>('exam_paper');
+  const [targetUnit, setTargetUnit] = useState<string>('पोलीस भरती PYQ प्रश्नपत्रिका');
+  const [targetNode, setTargetNode] = useState<string>('पोलीस भरती सराव प्रश्नपत्रिका');
   const [districtTag, setDistrictTag] = useState<string>('');
   const [pyqYear, setPyqYear] = useState<string>('2024');
 
@@ -140,7 +140,8 @@ export default function PdfExtractorPage() {
       formData.append('file', pdfFile);
       formData.append('apiKey', apiKey);
       formData.append('model', model);
-      formData.append('autoCategorize', String(autoCategorize));
+      formData.append('categorizeMode', categorizeMode);
+      formData.append('autoCategorize', String(categorizeMode === 'auto_syllabus'));
       formData.append('targetUnit', targetUnit);
       formData.append('targetNode', targetNode);
       if (districtTag) formData.append('district', districtTag);
@@ -235,6 +236,36 @@ export default function PdfExtractorPage() {
     toast('success', 'CSV Downloaded', `Saved ${extractedQuestions.length} questions to ${filename}`);
   };
 
+  // Consolidate all extracted questions into 1 Exam Node (4x25 Lessons)
+  const handleConsolidateAllToExam = () => {
+    if (extractedQuestions.length === 0) return;
+    const examName =
+      examMeta.title?.trim() ||
+      targetNode?.trim() ||
+      pdfFile?.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ') ||
+      'पोलीस भरती संपूर्ण सराव प्रश्नपत्रिका';
+
+    const examUnit =
+      targetUnit && targetUnit !== 'सामान्य ज्ञान व चालू घडामोडी'
+        ? targetUnit
+        : 'पोलीस भरती PYQ प्रश्नपत्रिका';
+
+    setExtractedQuestions((prev) =>
+      prev.map((q) => ({
+        ...q,
+        unitTitle: examUnit,
+        nodeTitle: examName,
+      }))
+    );
+
+    const fullLessons = Math.floor(extractedQuestions.length / 25);
+    toast(
+      'success',
+      'Consolidated into 1 Exam Node!',
+      `All ${extractedQuestions.length} questions merged into "${examName}" (forms ${fullLessons} complete 25-question lessons).`
+    );
+  };
+
   // Send directly to Curriculum Builder (Strict 25 Qs/Lesson Rule)
   const handleSendToCurriculumBuilder = () => {
     if (extractedQuestions.length === 0) return;
@@ -268,6 +299,10 @@ export default function PdfExtractorPage() {
         }));
 
         sessionStorage.setItem('prashnix_pending_staged_import', JSON.stringify(stagedRows));
+        sessionStorage.setItem(
+          'prashnix_pending_exam_title',
+          examMeta.title || targetNode || 'पोलीस भरती संपूर्ण सराव प्रश्नपत्रिका'
+        );
         router.push('/dashboard/curriculum');
       },
     });
@@ -439,30 +474,51 @@ export default function PdfExtractorPage() {
               {/* Allocation Strategy */}
               <div>
                 <label className="font-bold text-gray-700 block mb-1.5">Categorization Mode</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => setAutoCategorize(true)}
-                    className={`p-2.5 rounded-xl border text-left font-semibold transition-all ${
-                      autoCategorize
-                        ? 'border-indigo-600 bg-indigo-50/80 text-indigo-950 ring-1 ring-indigo-600'
+                    onClick={() => setCategorizeMode('exam_paper')}
+                    className={`p-2.5 rounded-xl border text-left font-semibold transition-all relative ${
+                      categorizeMode === 'exam_paper'
+                        ? 'border-emerald-600 bg-emerald-50/80 text-emerald-950 ring-1 ring-emerald-600'
                         : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                     }`}
                   >
+                    <span className="absolute -top-2 right-2 text-[9px] bg-emerald-600 text-white px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
+                      Recommended
+                    </span>
                     <div className="flex items-center gap-1.5">
-                      <Sparkles size={14} className="text-indigo-600" />
-                      Auto-Syllabus
+                      <Sparkles size={14} className="text-emerald-600" />
+                      Exam Paper Mode
                     </div>
                     <div className="text-[10px] text-gray-500 font-normal mt-0.5">
-                      Classifies into Grammar, GK, Polity, etc.
+                      100 Qs = 4 complete 25-Q lessons under 1 Exam Node.
                     </div>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => setAutoCategorize(false)}
+                    onClick={() => setCategorizeMode('auto_syllabus')}
                     className={`p-2.5 rounded-xl border text-left font-semibold transition-all ${
-                      !autoCategorize
+                      categorizeMode === 'auto_syllabus'
+                        ? 'border-indigo-600 bg-indigo-50/80 text-indigo-950 ring-1 ring-indigo-600'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Layers size={14} className="text-indigo-600" />
+                      Auto-Syllabus
+                    </div>
+                    <div className="text-[10px] text-gray-500 font-normal mt-0.5">
+                      Classifies into Grammar, GK, Polity, Math.
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCategorizeMode('manual')}
+                    className={`p-2.5 rounded-xl border text-left font-semibold transition-all ${
+                      categorizeMode === 'manual'
                         ? 'border-indigo-600 bg-indigo-50/80 text-indigo-950 ring-1 ring-indigo-600'
                         : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                     }`}
@@ -472,14 +528,14 @@ export default function PdfExtractorPage() {
                       Manual Target
                     </div>
                     <div className="text-[10px] text-gray-500 font-normal mt-0.5">
-                      All questions go to one specific Unit/Node.
+                      Assign all questions to a specific Unit/Node.
                     </div>
                   </button>
                 </div>
               </div>
 
-              {/* Manual Fields if active */}
-              {!autoCategorize && (
+              {/* Target Unit & Node inputs if exam_paper or manual */}
+              {categorizeMode !== 'auto_syllabus' && (
                 <div className="space-y-2 p-3 bg-gray-50 rounded-xl border border-gray-200">
                   <div>
                     <label className="font-medium text-gray-600 block mb-1">Target Unit Title</label>
@@ -488,17 +544,19 @@ export default function PdfExtractorPage() {
                       value={targetUnit}
                       onChange={(e) => setTargetUnit(e.target.value)}
                       className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-800"
-                      placeholder="उदा. महाराष्ट्र भूगोल व पर्यावरण"
+                      placeholder="उदा. पोलीस भरती PYQ प्रश्नपत्रिका"
                     />
                   </div>
                   <div>
-                    <label className="font-medium text-gray-600 block mb-1">Target Node Title</label>
+                    <label className="font-medium text-gray-600 block mb-1">
+                      {categorizeMode === 'exam_paper' ? 'Exam Paper Node Title (Auto or Custom)' : 'Target Node Title'}
+                    </label>
                     <input
                       type="text"
                       value={targetNode}
                       onChange={(e) => setTargetNode(e.target.value)}
                       className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-800"
-                      placeholder="उदा. नद्या व धरणे विशेष सराव"
+                      placeholder="उदा. SRPF गट २ पुणे पोलीस भरती पेपर २०२४"
                     />
                   </div>
                 </div>
@@ -613,6 +671,15 @@ export default function PdfExtractorPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handleConsolidateAllToExam}
+                className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
+                title="Consolidates all questions into 1 Exam Node to form 4 lessons of 25 questions each"
+              >
+                <Sparkles size={14} className="text-indigo-600" />
+                Format as 1 Exam Node (4x25 Qs)
+              </button>
+
               <button
                 onClick={handleExportCsv}
                 className="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors"

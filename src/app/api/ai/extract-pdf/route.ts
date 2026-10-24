@@ -40,9 +40,11 @@ export async function POST(req: NextRequest) {
     }
 
     const requestedModel = (formData.get('model') as string) || 'gemini-3.5-flash';
-    const autoCategorize = formData.get('autoCategorize') !== 'false';
-    const targetUnit = (formData.get('targetUnit') as string)?.trim() || 'सामान्य ज्ञान व चालू घडामोडी';
-    const targetNode = (formData.get('targetNode') as string)?.trim() || 'सर्वसाधारण सराव चाचणी';
+    const categorizeMode =
+      (formData.get('categorizeMode') as 'exam_paper' | 'auto_syllabus' | 'manual') ||
+      (formData.get('autoCategorize') === 'false' ? 'manual' : 'exam_paper');
+    const targetUnit = (formData.get('targetUnit') as string)?.trim() || 'पोलीस भरती PYQ प्रश्नपत्रिका';
+    const targetNode = (formData.get('targetNode') as string)?.trim() || 'पोलीस भरती संपूर्ण सराव प्रश्नपत्रिका';
     const districtTag = (formData.get('district') as string)?.trim() || null;
     const pyqYear = formData.get('pyqYear') ? parseInt(formData.get('pyqYear') as string, 10) : null;
 
@@ -64,7 +66,9 @@ Strict Extraction & Formatting Rules:
    - Provide a concise, clear 1-2 sentence Marathi explanation ('स्पष्टीकरण') explaining WHY that answer is correct.
 5. Syllabus Categorization:
    ${
-     autoCategorize
+     categorizeMode === 'exam_paper'
+       ? `This is a complete exam paper / PYQ set. Assign every question to Unit: "${targetUnit || 'पोलीस भरती PYQ प्रश्नपत्रिका'}" and Node: the detected Exam Paper Name (e.g. "SRPF गट २ पुणे पोलीस भरती पेपर" or "${targetNode}"). This ensures all questions stay together and form full 25-question lessons.`
+       : categorizeMode === 'auto_syllabus'
        ? `Categorize each question into standard Maharashtra Police Bharti syllabus Units and Nodes:
    - Unit 'मराठी व्याकरण' -> Nodes: 'वर्णमाला व संधी', 'नाम, सर्वनाम व विशेषण', 'काळ व प्रयोग', 'समास व अलंकार', 'शब्दसंग्रह व म्हणी'
    - Unit 'सामान्य ज्ञान व चालू घडामोडी' -> Nodes: 'इतिहास व समाजसुधारक', 'महाराष्ट्र भूगोल व जिल्हे', 'सामान्य विज्ञान', 'चालू घडामोडी'
@@ -195,6 +199,17 @@ Return a valid JSON object matching this schema:
       );
     }
 
+    // Resolve common Unit and Node title for Exam Paper Mode
+    const detectedExamTitle =
+      parsedPayload.examTitle?.trim() ||
+      targetNode ||
+      file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
+
+    const examUnitTitle =
+      targetUnit && targetUnit !== 'सामान्य ज्ञान व चालू घडामोडी'
+        ? targetUnit
+        : 'पोलीस भरती PYQ प्रश्नपत्रिका';
+
     // Format questions into Prashnix structured format
     const formattedQuestions = parsedPayload.questions.map((q, idx) => {
       const optA = (q.optionA || '').trim();
@@ -208,11 +223,22 @@ Return a valid JSON object matching this schema:
       if (cleanOpt === 'C') correctText = optC;
       if (cleanOpt === 'D') correctText = optD;
 
+      let resolvedUnit = (q.unitTitle || targetUnit).trim();
+      let resolvedNode = (q.nodeTitle || targetNode).trim();
+
+      if (categorizeMode === 'exam_paper') {
+        resolvedUnit = examUnitTitle;
+        resolvedNode = detectedExamTitle;
+      } else if (categorizeMode === 'manual') {
+        resolvedUnit = targetUnit;
+        resolvedNode = targetNode;
+      }
+
       return {
         id: `extracted_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
         rowIndex: idx + 1,
-        unitTitle: (q.unitTitle || targetUnit).trim(),
-        nodeTitle: (q.nodeTitle || targetNode).trim(),
+        unitTitle: resolvedUnit,
+        nodeTitle: resolvedNode,
         nodeType: 'learning',
         lessonTitle: 'Lesson 1',
         questionText: (q.questionText || '').trim(),
