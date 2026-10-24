@@ -16,6 +16,7 @@ import {
   Check,
   X,
   Edit3,
+  Copy,
 } from 'lucide-react';
 import { useFeedback } from '@/components/FeedbackDialog';
 
@@ -201,6 +202,81 @@ export default function QuestionBankPage() {
       toast('error', 'Update Failed', err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setSavingEdit(false);
+    }
+  };
+
+  // Copy Question & AI Prompt State
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const getFormattedQuestionPrompt = (
+    text: string,
+    options: string[],
+    correctAnswer: string,
+    existingExplanation?: string
+  ) => {
+    const optionsText = options
+      .map((opt, i) => `${String.fromCharCode(65 + i)}) ${opt}`)
+      .join('\n');
+
+    const normAns = (correctAnswer || '').trim();
+    let correctDisplay = normAns;
+    options.forEach((opt, i) => {
+      const letter = String.fromCharCode(65 + i);
+      const num = String(i + 1);
+      if (normAns === opt || normAns.toUpperCase() === letter || normAns === num) {
+        correctDisplay = `${letter}) ${opt}`;
+      }
+    });
+
+    const explanationPart = existingExplanation?.trim()
+      ? `${existingExplanation.trim()}\n\n(Prompt: Give me a small explanation of the correct answer.)`
+      : 'Give me a small explanation of the correct answer.';
+
+    return `Question:
+${text}
+
+Options:
+${optionsText}
+
+Correct Answer:
+${correctDisplay}
+
+Explanation:
+${explanationPart}`;
+  };
+
+  const handleCopyQuestion = async (q: QuestionItem) => {
+    const formatted = getFormattedQuestionPrompt(
+      q.content?.text || '',
+      q.content?.options || [],
+      q.correct_answer || '',
+      q.content?.explanation
+    );
+
+    try {
+      await navigator.clipboard.writeText(formatted);
+      setCopiedId(q.id);
+      toast('success', 'Question Copied', 'Question, options, answer, and explanation prompt copied.');
+      setTimeout(() => {
+        setCopiedId((curr) => (curr === q.id ? null : curr));
+      }, 2000);
+    } catch (err: unknown) {
+      toast('error', 'Copy Failed', err instanceof Error ? err.message : 'Clipboard access denied.');
+    }
+  };
+
+  const copyCurrentEditPrompt = async () => {
+    const formatted = getFormattedQuestionPrompt(
+      editForm.text,
+      editForm.options.filter(Boolean),
+      editForm.correct_answer,
+      editForm.explanation
+    );
+    try {
+      await navigator.clipboard.writeText(formatted);
+      toast('success', 'Prompt Copied', 'Ready to paste into ChatGPT/Claude to get an explanation.');
+    } catch (err: unknown) {
+      toast('error', 'Copy Failed', err instanceof Error ? err.message : 'Clipboard access denied.');
     }
   };
 
@@ -434,6 +510,21 @@ export default function QuestionBankPage() {
                   {/* Actions */}
                   <div className="flex items-center gap-1 shrink-0">
                     <button
+                      onClick={() => handleCopyQuestion(q)}
+                      className={`p-2 rounded-lg transition-all ${
+                        copiedId === q.id
+                          ? 'text-emerald-600 bg-emerald-50 ring-1 ring-emerald-200'
+                          : 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'
+                      }`}
+                      title={copiedId === q.id ? 'Copied to clipboard!' : 'Copy question & answer prompt'}
+                    >
+                      {copiedId === q.id ? (
+                        <Check size={18} className="text-emerald-600" />
+                      ) : (
+                        <Copy size={18} />
+                      )}
+                    </button>
+                    <button
                       onClick={() => startEditing(q)}
                       className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                       title="Edit Question"
@@ -653,9 +744,19 @@ export default function QuestionBankPage() {
 
               {/* Explanation */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                  Explanation / Reasoning (Optional)
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Explanation / Reasoning (Optional)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={copyCurrentEditPrompt}
+                    className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                    title="Copy formatted question & prompt to paste into AI for generating explanation"
+                  >
+                    <Copy size={12} /> Copy AI Prompt
+                  </button>
+                </div>
                 <textarea
                   rows={3}
                   value={editForm.explanation}
