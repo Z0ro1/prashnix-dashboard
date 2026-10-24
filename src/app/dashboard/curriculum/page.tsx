@@ -30,6 +30,17 @@ import {
 import Papa from 'papaparse';
 import { useFeedback } from '@/components/FeedbackDialog';
 
+export const DEFAULT_LESSON_TITLES = [
+  'पायाभूत संकल्पना व सराव',
+  'संकल्पना दृढीकरण',
+  'मध्यम काठिण्य पातळी सराव',
+  'प्रगत प्रश्न व PYQ सराव',
+  'वेग व अचूकता महासराव',
+  'नोड अंतिम उजळणी व परीक्षा',
+  'विशेष सराव चाचणी',
+  'अंतिम कौशल्य सराव',
+];
+
 // --- DATA TYPES ---
 interface Unit {
   id: string;
@@ -174,6 +185,10 @@ export default function CurriculumBuilderPage() {
   const [stagingTab, setStagingTab] = useState<'duplicates' | 'unique' | 'hierarchy'>('duplicates');
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [importProgress, setImportProgress] = useState<string | null>(null);
+
+  // Auto-partition configuration (5 to 6 lessons per node)
+  const [hierarchyMode, setHierarchyMode] = useState<'auto_partition' | 'strict_csv'>('auto_partition');
+  const [lessonsPerNode, setLessonsPerNode] = useState<number>(5);
 
   useEffect(() => {
     fetchData();
@@ -420,6 +435,249 @@ export default function CurriculumBuilderPage() {
       correctDisplay,
       addQuestionForm.explanation
     );
+  };
+
+  // Helper to partition rows of a node into 5 to 6 lessons
+  const partitionNodeQuestions = (
+    nodeQuestions: StagedImportRow[],
+    targetLessonsCount: number,
+    mode: 'auto_partition' | 'strict_csv'
+  ) => {
+    if (mode === 'strict_csv') {
+      const lessonMap = new Map<string, StagedImportRow[]>();
+      for (const row of nodeQuestions) {
+        const title = row.lessonTitle || 'Lesson 1';
+        if (!lessonMap.has(title)) lessonMap.set(title, []);
+        lessonMap.get(title)!.push(row);
+      }
+      let idx = 1;
+      const result: { lessonTitle: string; lessonIndex: number; rows: StagedImportRow[] }[] = [];
+      lessonMap.forEach((rows, title) => {
+        result.push({ lessonTitle: title, lessonIndex: idx++, rows });
+      });
+      return result;
+    }
+
+    // Auto-partition mode (5 to 6 lessons per node)
+    const numLessons = Math.max(1, Math.min(targetLessonsCount, nodeQuestions.length));
+    const result: { lessonTitle: string; lessonIndex: number; rows: StagedImportRow[] }[] = [];
+
+    for (let i = 0; i < numLessons; i++) {
+      const defaultName = DEFAULT_LESSON_TITLES[i] || `सराव भाग ${i + 1}`;
+      result.push({
+        lessonTitle: `Lesson ${i + 1}: ${defaultName}`,
+        lessonIndex: i + 1,
+        rows: [],
+      });
+    }
+
+    const total = nodeQuestions.length;
+    nodeQuestions.forEach((row, i) => {
+      const lessonIdx = Math.min(Math.floor((i * numLessons) / total), numLessons - 1);
+      result[lessonIdx].rows.push(row);
+    });
+
+    return result;
+  };
+
+  // Rebalance a single node into 5 or 6 lessons
+  const handleRebalanceNode = async (nodeId: string, targetCount: number = 5) => {
+    confirm({
+      title: `Rebalance Node into ${targetCount} Lessons?`,
+      message: `This will take all existing questions in this node and redistribute them evenly into ${targetCount} structured lessons (Lesson 1 to ${targetCount}).`,
+      confirmText: `Rebalance to ${targetCount} Lessons`,
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          const { data: nodeLessons, error: lErr } = await supabase
+            .from('lessons')
+            .select('id, title, display_id')
+            .eq('node_id', nodeId);
+          if (lErr) throw lErr;
+
+          const lessonIds = (nodeLessons || []).map((l) => l.id);
+          if (lessonIds.length === 0) {
+            toast('info', 'No Lessons', 'This node currently has no lessons to rebalance.');
+            return;
+          }
+
+          const { data: qData, error: qErr } = await supabase
+            .from('questions')
+            .select('*')
+            .in('lesson_id', lessonIds)
+            .order('created_at', { ascending: true });
+          if (qErr) throw qErr;
+
+          if (!qData || qData.length === 0) {
+            toast('info', 'No Questions', 'This node has no questions to redistribute.');
+            return;
+          }
+
+          const targetNode = nodes.find((n) => n.id === nodeId);
+          const nodeDisplayId = targetNode?.display_id || '1.1';
+
+          const finalLessons: any[] = [];
+          // 1. Reuse existing lessons
+          for (let i = 0; i < Math.min(nodeLessons.length, targetCount); i++) {
+            const title = `Lesson ${i + 1}: ${DEFAULT_LESSON_TITLES[i] || `सराव भाग ${i + 1}`}`;
+            const { data: updated, error: uErr } = await supabase
+              .from('lessons')
+              .update({
+                title,
+                order_index: i + 1,
+                display_id: `${nodeDisplayId}.${i + 1}`,
+              })
+              .eq('id', nodeLessons[i].id)
+              .select()
+              .single();
+            if (uErr) throw uErr;
+            finalLessons.push(updated);
+          }
+
+          // 2. Insert missing lessons up to targetCount
+          for (let i = nodeLessons.length; i < targetCount; i++) {
+            const title = `Lesson ${i + 1}: ${DEFAULT_LESSON_TITLES[i] || `सराव भाग ${i + 1}`}`;
+            const { data: created, error: cErr } = await supabase
+              .from('lessons')
+              .insert({
+                node_id: nodeId,
+                title,
+                display_id: `${nodeDisplayId}.${i + 1}`,
+                order_index: i + 1,
+              })
+              .select()
+              .single();
+            if (cErr) throw cErr;
+            finalLessons.push(created);
+          }
+
+          // 3. Distribute questions evenly to the target lessons
+          for (let i = 0; i < qData.length; i++) {
+            const lessonIdx = Math.min(Math.floor((i * targetCount) / qData.length), targetCount - 1);
+            const targetLesson = finalLessons[lessonIdx];
+            await supabase
+              .from('questions')
+              .update({ lesson_id: targetLesson.id })
+              .eq('id', qData[i].id);
+          }
+
+          // 4. Delete any excess lessons if old count > targetCount
+          if (nodeLessons.length > targetCount) {
+            for (let i = targetCount; i < nodeLessons.length; i++) {
+              await supabase.from('lessons').delete().eq('id', nodeLessons[i].id);
+            }
+          }
+
+          await fetchData();
+          toast('success', 'Node Rebalanced!', `Distributed ${qData.length} questions into ${targetCount} lessons.`);
+        } catch (err: unknown) {
+          toast('error', 'Rebalance Failed', err instanceof Error ? err.message : 'Unknown error');
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
+  };
+
+  // Bulk Rebalance All Nodes across entire curriculum into 5 or 6 lessons
+  const handleRebalanceAllNodes = async (targetCount: number = 5) => {
+    confirm({
+      title: `Rebalance All Nodes into ${targetCount} Lessons?`,
+      message: `This will take all questions across EVERY node in your entire curriculum and distribute them evenly into ${targetCount} structured lessons per node. Proceed?`,
+      confirmText: `Yes, Rebalance to ${targetCount} Lessons`,
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          const [nRes, lRes, qRes] = await Promise.all([
+            supabase.from('nodes').select('*'),
+            supabase.from('lessons').select('*'),
+            supabase.from('questions').select('*'),
+          ]);
+          const currentAllNodes = nRes.data || [];
+          const currentAllLessons = lRes.data || [];
+          const currentAllQuestions = qRes.data || [];
+
+          let updatedNodesCount = 0;
+
+          for (const node of currentAllNodes) {
+            const nodeLessons = currentAllLessons.filter((l) => l.node_id === node.id);
+            const lessonIds = nodeLessons.map((l) => l.id);
+            const nodeQuestions = currentAllQuestions.filter(
+              (q) => q.lesson_id && lessonIds.includes(q.lesson_id)
+            );
+
+            if (nodeQuestions.length === 0) continue;
+
+            const finalLessons: any[] = [];
+            // 1. Reuse existing
+            for (let i = 0; i < Math.min(nodeLessons.length, targetCount); i++) {
+              const title = `Lesson ${i + 1}: ${DEFAULT_LESSON_TITLES[i] || `सराव भाग ${i + 1}`}`;
+              const { data: updated, error: uErr } = await supabase
+                .from('lessons')
+                .update({
+                  title,
+                  order_index: i + 1,
+                  display_id: `${node.display_id}.${i + 1}`,
+                })
+                .eq('id', nodeLessons[i].id)
+                .select()
+                .single();
+              if (uErr) throw uErr;
+              finalLessons.push(updated);
+            }
+
+            // 2. Insert missing
+            for (let i = nodeLessons.length; i < targetCount; i++) {
+              const title = `Lesson ${i + 1}: ${DEFAULT_LESSON_TITLES[i] || `सराव भाग ${i + 1}`}`;
+              const { data: created, error: cErr } = await supabase
+                .from('lessons')
+                .insert({
+                  node_id: node.id,
+                  title,
+                  display_id: `${node.display_id}.${i + 1}`,
+                  order_index: i + 1,
+                })
+                .select()
+                .single();
+              if (cErr) throw cErr;
+              finalLessons.push(created);
+            }
+
+            // 3. Reassign questions
+            for (let i = 0; i < nodeQuestions.length; i++) {
+              const lessonIdx = Math.min(
+                Math.floor((i * targetCount) / nodeQuestions.length),
+                targetCount - 1
+              );
+              await supabase
+                .from('questions')
+                .update({ lesson_id: finalLessons[lessonIdx].id })
+                .eq('id', nodeQuestions[i].id);
+            }
+
+            // 4. Delete excess
+            if (nodeLessons.length > targetCount) {
+              for (let i = targetCount; i < nodeLessons.length; i++) {
+                await supabase.from('lessons').delete().eq('id', nodeLessons[i].id);
+              }
+            }
+
+            updatedNodesCount++;
+          }
+
+          await fetchData();
+          toast(
+            'success',
+            'All Nodes Rebalanced!',
+            `Successfully rebalanced ${updatedNodesCount} nodes into ${targetCount} lessons each.`
+          );
+        } catch (err: unknown) {
+          toast('error', 'Rebalance Failed', err instanceof Error ? err.message : 'Unknown error');
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
   };
 
   // Save manual add / edit
@@ -981,79 +1239,80 @@ export default function CurriculumBuilderPage() {
           }
         }
 
-        // --- 3. RESOLVE / CREATE LESSONS ---
-        setImportProgress('Mapping and creating Lessons...');
-        const uniqueLessons = Array.from(
-          new Set(
-            rowsToImport.map((r) => `${r.unitTitle}:::${r.nodeTitle}:::${r.lessonTitle}`)
-          )
+        // --- 3. RESOLVE / CREATE LESSONS & PREPARE QUESTION PAYLOADS ---
+        setImportProgress(
+          hierarchyMode === 'auto_partition'
+            ? `Allocating questions into ${lessonsPerNode} lessons per node...`
+            : 'Mapping and creating Lessons from CSV...'
         );
-        const lessonIdMap = new Map<string, { id: string; display_id: string }>();
 
         let currentLessons = [...lessons];
+        const allQuestionPayloads: any[] = [];
+        let totalGeneratedLessons = 0;
 
-        for (const composite of uniqueLessons) {
-          const [uTitle, nTitle, lTitle] = composite.split(':::');
-          const nodeInfo = nodeIdMap.get(`${uTitle}:::${nTitle}`)!;
-
-          const existingLesson = currentLessons.find(
-            (l) => l.node_id === nodeInfo.id && l.title.toLowerCase() === lTitle.toLowerCase()
+        for (const composite of uniqueNodes) {
+          const [uTitle, nTitle] = composite.split(':::');
+          const nodeInfo = nodeIdMap.get(composite)!;
+          const nodeRows = rowsToImport.filter(
+            (r) => r.unitTitle === uTitle && r.nodeTitle === nTitle
           );
 
-          if (existingLesson) {
-            lessonIdMap.set(composite, {
-              id: existingLesson.id,
-              display_id: existingLesson.display_id,
-            });
-          } else {
-            const nodeLessons = currentLessons.filter((l) => l.node_id === nodeInfo.id);
-            const nextLessonOrder =
-              nodeLessons.length > 0 ? Math.max(...nodeLessons.map((l) => l.order_index)) + 1 : 1;
-            const newDisplayId = `${nodeInfo.display_id}.${nextLessonOrder}`;
+          const partitions = partitionNodeQuestions(nodeRows, lessonsPerNode, hierarchyMode);
+          totalGeneratedLessons += partitions.length;
 
-            const { data: newLesson, error } = await supabase
-              .from('lessons')
-              .insert({
-                node_id: nodeInfo.id,
-                title: lTitle,
-                display_id: newDisplayId,
-                order_index: nextLessonOrder,
-              })
-              .select()
-              .single();
+          for (const p of partitions) {
+            let lessonRecord = currentLessons.find(
+              (l) => l.node_id === nodeInfo.id && l.title.toLowerCase() === p.lessonTitle.toLowerCase()
+            );
 
-            if (error) throw error;
-            currentLessons.push(newLesson);
-            lessonIdMap.set(composite, { id: newLesson.id, display_id: newLesson.display_id });
+            if (!lessonRecord) {
+              const nodeLessons = currentLessons.filter((l) => l.node_id === nodeInfo.id);
+              const nextLessonOrder =
+                nodeLessons.length > 0
+                  ? Math.max(...nodeLessons.map((l) => l.order_index)) + 1
+                  : p.lessonIndex;
+              const newDisplayId = `${nodeInfo.display_id}.${nextLessonOrder}`;
+
+              const { data: newLesson, error } = await supabase
+                .from('lessons')
+                .insert({
+                  node_id: nodeInfo.id,
+                  title: p.lessonTitle,
+                  display_id: newDisplayId,
+                  order_index: nextLessonOrder,
+                })
+                .select()
+                .single();
+
+              if (error) throw error;
+              lessonRecord = newLesson;
+              currentLessons.push(newLesson);
+            }
+
+            for (const r of p.rows) {
+              allQuestionPayloads.push({
+                lesson_id: lessonRecord.id,
+                display_id: `${lessonRecord.display_id}.${Date.now() + Math.random()}`,
+                is_global_pool: false,
+                question_type: 'multiple_choice',
+                content: {
+                  text: r.questionText,
+                  options: r.options,
+                  explanation: r.explanation,
+                  pyq_year: r.pyqYear,
+                  district_tag: r.districtTag,
+                },
+                correct_answer: r.correctAnswer,
+              });
+            }
           }
         }
 
         // --- 4. BATCH INSERT QUESTIONS ---
-        setImportProgress(`Inserting ${rowsToImport.length} verified questions...`);
-        const questionPayloads = rowsToImport.map((r) => {
-          const lessonInfo = lessonIdMap.get(
-            `${r.unitTitle}:::${r.nodeTitle}:::${r.lessonTitle}`
-          )!;
-          return {
-            lesson_id: lessonInfo.id,
-            display_id: `${lessonInfo.display_id}.${Date.now() + Math.random()}`,
-            is_global_pool: false,
-            question_type: 'multiple_choice',
-            content: {
-              text: r.questionText,
-              options: r.options,
-              explanation: r.explanation,
-              pyq_year: r.pyqYear,
-              district_tag: r.districtTag,
-            },
-            correct_answer: r.correctAnswer,
-          };
-        });
-
-        // Insert in batches of 50
+        setImportProgress(`Inserting ${allQuestionPayloads.length} verified questions...`);
         const CHUNK_SIZE = 50;
-        for (let i = 0; i < questionPayloads.length; i += CHUNK_SIZE) {
-          const chunk = questionPayloads.slice(i, i + CHUNK_SIZE);
+        for (let i = 0; i < allQuestionPayloads.length; i += CHUNK_SIZE) {
+          const chunk = allQuestionPayloads.slice(i, i + CHUNK_SIZE);
           const { error } = await supabase.from('questions').insert(chunk);
           if (error) throw error;
         }
@@ -1065,8 +1324,8 @@ export default function CurriculumBuilderPage() {
             <div className="grid grid-cols-2 gap-2 p-3 bg-slate-900/60 rounded-xl border border-slate-700/50">
               <div><span className="text-slate-400">Units:</span> <span className="font-bold text-white">{uniqueUnitTitles.length}</span></div>
               <div><span className="text-slate-400">Nodes:</span> <span className="font-bold text-white">{uniqueNodes.length}</span></div>
-              <div><span className="text-slate-400">Lessons:</span> <span className="font-bold text-white">{uniqueLessons.length}</span></div>
-              <div><span className="text-slate-400">Questions:</span> <span className="font-bold text-emerald-400">{rowsToImport.length}</span></div>
+              <div><span className="text-slate-400">Lessons:</span> <span className="font-bold text-white">{totalGeneratedLessons} ({hierarchyMode === 'auto_partition' ? `${lessonsPerNode}/node` : 'CSV'})</span></div>
+              <div><span className="text-slate-400">Questions:</span> <span className="font-bold text-emerald-400">{allQuestionPayloads.length}</span></div>
             </div>
             {stagedRows.length - rowsToImport.length > 0 && (
               <p className="text-xs text-amber-400 font-medium">
@@ -1150,15 +1409,30 @@ export default function CurriculumBuilderPage() {
     const activeRows = stagedRows.filter((r) => r.status === 'valid' || r.status === 'edited');
     const uSet = new Set(activeRows.map((r) => r.unitTitle));
     const nSet = new Set(activeRows.map((r) => `${r.unitTitle}:::${r.nodeTitle}`));
-    const lSet = new Set(activeRows.map((r) => `${r.unitTitle}:::${r.nodeTitle}:::${r.lessonTitle}`));
+
+    let totalLessonsCount = 0;
+    if (hierarchyMode === 'strict_csv') {
+      const lSet = new Set(
+        activeRows.map((r) => `${r.unitTitle}:::${r.nodeTitle}:::${r.lessonTitle}`)
+      );
+      totalLessonsCount = lSet.size;
+    } else {
+      nSet.forEach((composite) => {
+        const [uTitle, nTitle] = composite.split(':::');
+        const nodeRows = activeRows.filter((r) => r.unitTitle === uTitle && r.nodeTitle === nTitle);
+        const parts = partitionNodeQuestions(nodeRows, lessonsPerNode, hierarchyMode);
+        totalLessonsCount += parts.length;
+      });
+    }
+
     return {
       unitsCount: uSet.size,
       nodesCount: nSet.size,
-      lessonsCount: lSet.size,
+      lessonsCount: totalLessonsCount,
       questionsCount: activeRows.length,
       skippedCount: stagedRows.filter((r) => r.status === 'skipped').length,
     };
-  }, [stagedRows]);
+  }, [stagedRows, hierarchyMode, lessonsPerNode]);
 
   // Answer distribution stats for pre-flight review to detect single-option skew
   const answerDistributionStats = useMemo(() => {
@@ -1286,11 +1560,21 @@ export default function CurriculumBuilderPage() {
             </div>
           </div>
 
+          {/* Quick Rebalance Dropdown/Button */}
+          <button
+            onClick={() => handleRebalanceAllNodes(5)}
+            className="bg-white border border-gray-300 hover:bg-indigo-50 hover:text-indigo-700 text-gray-700 px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors font-medium text-sm shadow-sm"
+            title="Automatically rebalance all current nodes in the database to have 5-6 lessons each"
+          >
+            <RefreshCw size={15} className="text-indigo-600" />
+            Rebalance to 5 Lessons
+          </button>
+
           {/* Automated Mega Import Button */}
           <button
             onClick={() => bulkFileInputRef.current?.click()}
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-semibold text-sm shadow-sm"
-            title="Import an entire curriculum from a single CSV (Units, Nodes, Lessons, and Questions)"
+            title="Import an entire curriculum from a single CSV with 5-6 lessons per node"
           >
             <Sparkles size={16} />
             Auto-Build Curriculum (CSV)
@@ -1667,6 +1951,39 @@ export default function CurriculumBuilderPage() {
                         placeholder="Internal notes about this node..."
                       />
                     </div>
+
+                    {/* Quick Rebalance Card for this node */}
+                    <div className="col-span-2 pt-4 mt-2 border-t border-gray-100 bg-gray-50/80 p-4 rounded-xl border border-gray-200">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                            <Sparkles size={14} className="text-indigo-600" />
+                            Node Lessons Restructuring
+                          </div>
+                          <p className="text-[11px] text-gray-500 mt-0.5">
+                            Re-balance all existing questions in this node into 5 or 6 structured lessons.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleRebalanceNode(selection.item.id, 5)}
+                            disabled={actionLoading}
+                            className="px-3 py-1.5 text-xs font-bold bg-white hover:bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-200 shadow-xs transition-colors"
+                          >
+                            Rebalance to 5 Lessons
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRebalanceNode(selection.item.id, 6)}
+                            disabled={actionLoading}
+                            className="px-3 py-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-xs transition-colors"
+                          >
+                            Rebalance to 6 Lessons
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -1936,6 +2253,71 @@ export default function CurriculumBuilderPage() {
                     <span className="px-2 py-0.5 bg-rose-100 rounded text-rose-800 font-semibold">C: {answerDistributionStats.percentages.C}%</span>
                     <span className="px-2 py-0.5 bg-rose-100 rounded text-rose-800 font-semibold">D: {answerDistributionStats.percentages.D}%</span>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Auto-Partition & Lesson Allocation Configuration Bar */}
+            {isMegaCurriculum && (
+              <div className="mx-6 mt-3 p-3.5 bg-gradient-to-r from-indigo-50/90 to-purple-50/90 border border-indigo-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div>
+                  <div className="font-bold text-indigo-950 flex items-center gap-1.5">
+                    <Sparkles size={15} className="text-indigo-600" />
+                    Lesson Allocation Strategy
+                  </div>
+                  <p className="text-indigo-700 text-[11px] mt-0.5">
+                    {hierarchyMode === 'auto_partition'
+                      ? `Questions in each node are automatically balanced into ${lessonsPerNode} progressive lessons (~${Math.max(1, Math.round(hierarchyPreviewStats.questionsCount / Math.max(1, hierarchyPreviewStats.nodesCount * lessonsPerNode)))} Qs/lesson).`
+                      : 'Using exact lesson titles directly from the CSV columns.'}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <div className="flex bg-white rounded-lg p-0.5 border border-indigo-200 shadow-xs">
+                    <button
+                      type="button"
+                      onClick={() => setHierarchyMode('auto_partition')}
+                      className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                        hierarchyMode === 'auto_partition'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-gray-600 hover:text-indigo-600'
+                      }`}
+                    >
+                      Auto-Structure
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHierarchyMode('strict_csv')}
+                      className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                        hierarchyMode === 'strict_csv'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-gray-600 hover:text-indigo-600'
+                      }`}
+                    >
+                      Exact CSV Titles
+                    </button>
+                  </div>
+
+                  {hierarchyMode === 'auto_partition' && (
+                    <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-indigo-200 shadow-xs">
+                      <span className="text-[11px] font-semibold text-gray-500 mr-1">Lessons/Node:</span>
+                      {[4, 5, 6].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setLessonsPerNode(num)}
+                          className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold transition-all ${
+                            lessonsPerNode === num
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                          title={`Structure every node into ${num} lessons`}
+                        >
+                          {num}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -2296,10 +2678,18 @@ export default function CurriculumBuilderPage() {
               {/* TAB 3: CURRICULUM BLUEPRINT HIERARCHY */}
               {stagingTab === 'hierarchy' && (
                 <div className="space-y-4">
-                  <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs text-indigo-900 leading-relaxed">
-                    <strong>Automated Structure Generation:</strong> The system will scan your database
-                    and automatically create any missing Units, Nodes, and Lessons. Existing items with
-                    matching names will be merged safely without deleting prior content.
+                  <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs text-indigo-900 leading-relaxed flex items-center justify-between">
+                    <div>
+                      <strong>Automated Structure Generation:</strong>{' '}
+                      {hierarchyMode === 'auto_partition'
+                        ? `Each node is configured with ${lessonsPerNode} lessons. Questions are distributed evenly across lessons for high-retention micro-learning.`
+                        : 'Using exact lesson titles as found in the CSV.'}
+                    </div>
+                    {hierarchyMode === 'auto_partition' && (
+                      <span className="shrink-0 bg-indigo-600 text-white font-bold px-3 py-1 rounded-full text-xs shadow-xs">
+                        {lessonsPerNode} Lessons / Node Active
+                      </span>
+                    )}
                   </div>
 
                   {Array.from(
@@ -2342,36 +2732,40 @@ export default function CurriculumBuilderPage() {
                           </span>
                         </div>
 
-                        <div className="p-3 space-y-2">
+                        <div className="p-3 space-y-3">
                           {unitNodes.map((nTitle) => {
                             const nodeRows = unitRows.filter((r) => r.nodeTitle === nTitle);
-                            const nodeLessons = Array.from(new Set(nodeRows.map((r) => r.lessonTitle)));
+                            const partitions = partitionNodeQuestions(nodeRows, lessonsPerNode, hierarchyMode);
 
                             return (
                               <div
                                 key={nTitle}
-                                className="ml-4 pl-3 border-l-2 border-indigo-200 text-xs space-y-1"
+                                className="ml-2 pl-3 border-l-2 border-indigo-200 text-xs space-y-2"
                               >
-                                <div className="font-semibold text-gray-700 flex items-center gap-1.5">
-                                  <Target size={13} className="text-indigo-500" />
-                                  Node: {nTitle}
-                                  <span className="text-[10px] text-gray-400">
-                                    ({nodeLessons.length} lessons)
+                                <div className="font-semibold text-gray-800 flex items-center justify-between bg-indigo-50/40 p-2 rounded-lg border border-indigo-100/60">
+                                  <div className="flex items-center gap-1.5">
+                                    <Target size={14} className="text-indigo-600" />
+                                    <span>Node: {nTitle}</span>
+                                  </div>
+                                  <span className="text-[11px] font-bold text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-full">
+                                    {partitions.length} Lessons • {nodeRows.length} Qs
                                   </span>
                                 </div>
-                                <div className="ml-5 space-y-0.5 text-gray-600">
-                                  {nodeLessons.map((lTitle) => {
-                                    const count = nodeRows.filter((r) => r.lessonTitle === lTitle).length;
-                                    return (
-                                      <div key={lTitle} className="flex items-center gap-1.5">
-                                        <BookOpen size={11} className="text-gray-400" />
-                                        <span>Lesson: {lTitle}</span>
-                                        <span className="text-[10px] text-emerald-600 font-semibold">
-                                          ({count} questions)
-                                        </span>
+                                <div className="ml-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                  {partitions.map((p) => (
+                                    <div
+                                      key={p.lessonTitle}
+                                      className="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-200 text-gray-700"
+                                    >
+                                      <div className="flex items-center gap-1.5 truncate mr-2">
+                                        <BookOpen size={12} className="text-indigo-500 shrink-0" />
+                                        <span className="font-medium text-xs truncate">{p.lessonTitle}</span>
                                       </div>
-                                    );
-                                  })}
+                                      <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded shrink-0">
+                                        {p.rows.length} Qs
+                                      </span>
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
                             );
