@@ -77,9 +77,12 @@ export default function PdfExtractorPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load API key from localStorage on mount
+  // Load API key from localStorage or env on mount
   useEffect(() => {
-    const savedKey = localStorage.getItem('prashnix_gemini_api_key');
+    const savedKey =
+      localStorage.getItem('prashnix_gemini_api_key') ||
+      process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
+      '';
     if (savedKey) {
       setApiKey(savedKey);
       setTempApiKey(savedKey);
