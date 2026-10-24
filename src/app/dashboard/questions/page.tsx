@@ -17,6 +17,7 @@ import {
   X,
   Edit3,
   Copy,
+  Plus,
 } from 'lucide-react';
 import { useFeedback } from '@/components/FeedbackDialog';
 
@@ -114,12 +115,26 @@ export default function QuestionBankPage() {
 
   const startEditing = (q: QuestionItem) => {
     setEditingQuestion(q);
-    const opts = [...(q.content?.options || [])];
+    let rawOptions: string[] = [];
+    if (Array.isArray(q.content?.options)) {
+      rawOptions = q.content.options.map((o) => String(o ?? ''));
+    } else if (typeof q.content?.options === 'string') {
+      try {
+        const parsed = JSON.parse(q.content.options);
+        rawOptions = Array.isArray(parsed) ? parsed.map((o) => String(o ?? '')) : [q.content.options];
+      } catch {
+        rawOptions = [q.content.options];
+      }
+    }
+    const opts = [...rawOptions];
     while (opts.length < 4) opts.push('');
+
+    const currentCorrect = (q.correct_answer || '').trim();
+
     setEditForm({
       text: q.content?.text || '',
       options: opts,
-      correct_answer: q.correct_answer || opts[0] || '',
+      correct_answer: currentCorrect || opts[0] || '',
       explanation: q.content?.explanation || '',
       pyq_year: q.content?.pyq_year ? String(q.content.pyq_year) : '',
       district_tag: q.content?.district_tag || '',
@@ -132,7 +147,11 @@ export default function QuestionBankPage() {
     newOptions[idx] = value;
 
     let newCorrect = editForm.correct_answer;
-    if (newCorrect === oldVal || newCorrect === String.fromCharCode(65 + idx) || newCorrect === String(idx + 1)) {
+    if (
+      newCorrect === oldVal ||
+      newCorrect === String.fromCharCode(65 + idx) ||
+      newCorrect === String(idx + 1)
+    ) {
       newCorrect = value;
     }
 
@@ -145,6 +164,31 @@ export default function QuestionBankPage() {
 
   const setCorrectOption = (optVal: string) => {
     setEditForm((prev) => ({ ...prev, correct_answer: optVal }));
+  };
+
+  const addOption = () => {
+    setEditForm((prev) => ({
+      ...prev,
+      options: [...prev.options, ''],
+    }));
+  };
+
+  const removeOption = (idx: number) => {
+    if (editForm.options.length <= 2) {
+      toast('error', 'Cannot Remove', 'A question must have at least 2 options.');
+      return;
+    }
+    const removedVal = editForm.options[idx];
+    const newOptions = editForm.options.filter((_, i) => i !== idx);
+    let newCorrect = editForm.correct_answer;
+    if (newCorrect === removedVal) {
+      newCorrect = newOptions[0] || '';
+    }
+    setEditForm((prev) => ({
+      ...prev,
+      options: newOptions,
+      correct_answer: newCorrect,
+    }));
   };
 
   const saveEditing = async () => {
@@ -674,15 +718,24 @@ ${explanationPart}`;
               {/* Options */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Answer Options & Correct Answer <span className="text-red-500">*</span>
-                  </label>
-                  <span className="text-[11px] text-gray-500">
-                    Click an option letter or button to set it as correct
-                  </span>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-800 uppercase tracking-wider">
+                      Options & Correct Answer <span className="text-red-500">*</span>
+                    </label>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      Type the text for each option below and click the green badge to designate the correct answer.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addOption}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors"
+                  >
+                    <Plus size={13} /> Add Option
+                  </button>
                 </div>
 
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   {editForm.options.map((opt, i) => {
                     const optLetter = String.fromCharCode(65 + i);
                     const optNum = String(i + 1);
@@ -696,46 +749,62 @@ ${explanationPart}`;
                     return (
                       <div
                         key={i}
-                        className={`p-2.5 rounded-xl border transition-all flex items-center gap-3 ${
+                        className={`p-3 rounded-xl border transition-all ${
                           isSelected
-                            ? 'bg-emerald-50/80 border-emerald-400 ring-1 ring-emerald-300'
-                            : 'bg-white border-gray-200 hover:border-gray-300'
+                            ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-200'
+                            : 'bg-white border-gray-200 hover:border-gray-300 shadow-xs'
                         }`}
                       >
-                        <button
-                          type="button"
-                          onClick={() => setCorrectOption(opt || optLetter)}
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
-                            isSelected
-                              ? 'bg-emerald-600 text-white shadow-sm'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
-                          title="Click to mark as correct answer"
-                        >
-                          {isSelected ? <Check size={14} strokeWidth={3} /> : optLetter}
-                        </button>
-
-                        <input
-                          type="text"
-                          value={opt}
-                          onChange={(e) => handleOptionChange(i, e.target.value)}
-                          placeholder={`Option ${optLetter}`}
-                          className="flex-1 bg-transparent text-sm text-gray-900 outline-none"
-                        />
-
-                        {isSelected ? (
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-md shrink-0 flex items-center gap-1">
-                            <CheckCircle2 size={13} /> Correct Answer
-                          </span>
-                        ) : (
+                        <div className="flex items-center gap-3">
                           <button
                             type="button"
                             onClick={() => setCorrectOption(opt || optLetter)}
-                            className="text-[11px] font-medium text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 px-2 py-1 rounded transition-colors shrink-0"
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0 transition-all ${
+                              isSelected
+                                ? 'bg-emerald-600 text-white shadow-sm'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                            title="Click to mark as correct answer"
                           >
-                            Mark Correct
+                            {isSelected ? <Check size={16} strokeWidth={3} /> : optLetter}
                           </button>
-                        )}
+
+                          <input
+                            type="text"
+                            value={opt}
+                            onChange={(e) => handleOptionChange(i, e.target.value)}
+                            placeholder={`Enter Option ${optLetter} text...`}
+                            className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 font-medium placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            style={{ color: '#111827', backgroundColor: '#ffffff' }}
+                          />
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isSelected ? (
+                              <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                                <CheckCircle2 size={15} /> Correct
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setCorrectOption(opt || optLetter)}
+                                className="text-xs font-semibold text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-gray-200 transition-colors"
+                              >
+                                Mark Correct
+                              </button>
+                            )}
+
+                            {editForm.options.length > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => removeOption(i)}
+                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Remove this option"
+                              >
+                                <X size={15} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
