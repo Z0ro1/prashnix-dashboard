@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FileText,
@@ -12,7 +12,6 @@ import {
   BookOpen,
   Layers,
   Target,
-  Key,
   Trash2,
   Edit,
   ArrowRight,
@@ -24,6 +23,11 @@ import {
   Calendar,
   Eye,
   Sliders,
+  Clock,
+  Cpu,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { useFeedback } from '@/components/FeedbackDialog';
@@ -48,14 +52,42 @@ interface ExtractedQuestion {
   districtTag: string | null;
 }
 
+const EXTRACTION_STAGES = [
+  {
+    id: 1,
+    label: 'Document Ingestion & Layout Analysis',
+    detail: 'Reading binary stream, pages, and typography metadata',
+  },
+  {
+    id: 2,
+    label: 'Devanagari OCR & Conjunct Normalization',
+    detail: 'Scanning Marathi text, conjuncts (जोडाक्षरे), and repairing broken ligatures',
+  },
+  {
+    id: 3,
+    label: 'MCQ & Options Pattern Segmentation',
+    detail: 'Identifying question statements and isolating 4 distinct options (A-D)',
+  },
+  {
+    id: 4,
+    label: 'Official Answer Key Cross-Checking',
+    detail: 'Verifying answer key & standard syllabus references for verified answers',
+  },
+  {
+    id: 5,
+    label: 'AI Marathi Explanation Synthesis',
+    detail: 'Composing concise 1-2 sentence verified Marathi explanations (स्पष्टीकरण)',
+  },
+  {
+    id: 6,
+    label: 'Prashnix 25-Question Blueprint Packaging',
+    detail: 'Formatting strictly into 25-question lessons ready for curriculum build',
+  },
+];
+
 export default function PdfExtractorPage() {
   const router = useRouter();
   const { toast, alert: customAlert, confirm } = useFeedback();
-
-  // Gemini API Key management
-  const [apiKey, setApiKey] = useState<string>('');
-  const [showKeyModal, setShowKeyModal] = useState<boolean>(false);
-  const [tempApiKey, setTempApiKey] = useState<string>('');
 
   // Upload & Config State
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -65,10 +97,13 @@ export default function PdfExtractorPage() {
   const [targetNode, setTargetNode] = useState<string>('पोलीस भरती सराव प्रश्नपत्रिका');
   const [districtTag, setDistrictTag] = useState<string>('');
   const [pyqYear, setPyqYear] = useState<string>('2024');
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
 
-  // Execution State
+  // Execution & Real-time Progress State
   const [isExtracting, setIsExtracting] = useState<boolean>(false);
-  const [extractStep, setExtractStep] = useState<string>('');
+  const [progressPercent, setProgressPercent] = useState<number>(0);
+  const [currentStageIdx, setCurrentStageIdx] = useState<number>(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [extractedQuestions, setExtractedQuestions] = useState<ExtractedQuestion[]>([]);
   const [examMeta, setExamMeta] = useState<{ title?: string; year?: number; district?: string }>({});
 
@@ -76,32 +111,6 @@ export default function PdfExtractorPage() {
   const [editingQuestion, setEditingQuestion] = useState<ExtractedQuestion | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Load API key from localStorage or env on mount
-  useEffect(() => {
-    const savedKey =
-      localStorage.getItem('prashnix_gemini_api_key') ||
-      process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
-      '';
-    if (savedKey) {
-      setApiKey(savedKey);
-      setTempApiKey(savedKey);
-    }
-  }, []);
-
-  const handleSaveApiKey = () => {
-    const clean = tempApiKey.trim();
-    if (!clean) {
-      localStorage.removeItem('prashnix_gemini_api_key');
-      setApiKey('');
-      toast('info', 'API Key Removed', 'Gemini API key was cleared.');
-    } else {
-      localStorage.setItem('prashnix_gemini_api_key', clean);
-      setApiKey(clean);
-      toast('success', 'API Key Saved', 'Gemini API key has been stored locally.');
-    }
-    setShowKeyModal(false);
-  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -111,34 +120,87 @@ export default function PdfExtractorPage() {
         return;
       }
       setPdfFile(file);
-      // Auto-extract year or district from filename if present
-      const name = file.name;
-      const yearMatch = name.match(/20\d{2}/);
-      if (yearMatch && !pyqYear) {
+
+      // Auto-populate clean Exam Title from filename
+      const cleanName = file.name
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[_.-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (cleanName) {
+        setTargetNode(cleanName);
+      }
+
+      // Auto-extract year if present
+      const yearMatch = file.name.match(/20\d{2}/);
+      if (yearMatch) {
         setPyqYear(yearMatch[0]);
+      }
+
+      // Auto-detect known Maharashtra districts from filename
+      const knownDistricts = [
+        'पुणे', 'मुंबई', 'ठाणे', 'नागपूर', 'नाशिक', 'औरंगाबाद', 'छत्रपती संभाजीनगर',
+        'कोल्हापूर', 'सोलापूर', 'अमरावती', 'नांदेड', 'जळगाव', 'सातारा', 'रायगड',
+        'सिंधुदुर्ग', 'रत्नागिरी', 'अहमदनगर', 'धुळे', 'नंदुरबार', 'सांगली', 'बीड',
+        'जालना', 'उस्मानाबाद', 'धाराशिव', 'लातूर', 'परभणी', 'हिंगोली', 'बुलढाणा',
+        'अकोला', 'वाशीम', 'यवतमाळ', 'वर्धा', 'भंडारा', 'गोंदिया', 'चंद्रपूर', 'गडचिरोली'
+      ];
+      for (const d of knownDistricts) {
+        if (file.name.includes(d)) {
+          setDistrictTag(d);
+          break;
+        }
       }
     }
   };
 
-  // Run AI Extraction
+  // Run AI Extraction with live progress pipeline
   const handleStartExtraction = async () => {
     if (!pdfFile) {
       toast('warning', 'Missing PDF', 'Please upload a PDF exam paper first.');
       return;
     }
-    if (!apiKey) {
-      setShowKeyModal(true);
-      toast('warning', 'API Key Needed', 'Please enter your Gemini API key to start extraction.');
-      return;
-    }
 
     setIsExtracting(true);
-    setExtractStep('Uploading PDF to Gemini AI...');
+    setProgressPercent(10);
+    setCurrentStageIdx(0);
+    setElapsedSeconds(0);
+
+    const startTime = Date.now();
+    const timerInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      setElapsedSeconds(elapsed);
+
+      // Realistic progressive curve through the 6 stages
+      setProgressPercent((prev) => {
+        let next = prev;
+        if (elapsed < 3) {
+          next = Math.min(22, prev + 3);
+          setCurrentStageIdx(0);
+        } else if (elapsed < 7) {
+          next = Math.min(44, prev + 2.5);
+          setCurrentStageIdx(1);
+        } else if (elapsed < 14) {
+          next = Math.min(68, prev + 2);
+          setCurrentStageIdx(2);
+        } else if (elapsed < 22) {
+          next = Math.min(84, prev + 1.2);
+          setCurrentStageIdx(3);
+        } else if (elapsed < 30) {
+          next = Math.min(94, prev + 0.8);
+          setCurrentStageIdx(4);
+        } else {
+          next = Math.min(98, prev + 0.2);
+          setCurrentStageIdx(5);
+        }
+        return Math.round(next);
+      });
+    }, 400);
 
     try {
       const formData = new FormData();
       formData.append('file', pdfFile);
-      formData.append('apiKey', apiKey);
       formData.append('model', model);
       formData.append('categorizeMode', categorizeMode);
       formData.append('autoCategorize', String(categorizeMode === 'auto_syllabus'));
@@ -146,8 +208,6 @@ export default function PdfExtractorPage() {
       formData.append('targetNode', targetNode);
       if (districtTag) formData.append('district', districtTag);
       if (pyqYear) formData.append('pyqYear', pyqYear);
-
-      setExtractStep('Analyzing PDF structure, Devanagari text, and MCQs...');
 
       const res = await fetch('/api/ai/extract-pdf', {
         method: 'POST',
@@ -160,7 +220,10 @@ export default function PdfExtractorPage() {
         throw new Error(data.error || 'Failed to extract PDF');
       }
 
-      setExtractStep('Formatting questions and generating Marathi explanations...');
+      clearInterval(timerInterval);
+      setProgressPercent(100);
+      setCurrentStageIdx(5);
+
       setExtractedQuestions(data.questions || []);
       setExamMeta({
         title: data.examTitle,
@@ -168,20 +231,24 @@ export default function PdfExtractorPage() {
         district: data.detectedDistrict,
       });
 
+      // Brief delay to showcase 100% completion before revealing studio
+      await new Promise((r) => setTimeout(r, 600));
+
       toast(
         'success',
         'Extraction Complete!',
         `Successfully extracted ${data.questions?.length || 0} questions with clean Marathi text & one-liner explanations.`
       );
     } catch (err: unknown) {
+      clearInterval(timerInterval);
       customAlert(
         'Extraction Failed',
         err instanceof Error ? err.message : 'Unknown error occurred while processing PDF.',
         'error'
       );
     } finally {
+      clearInterval(timerInterval);
       setIsExtracting(false);
-      setExtractStep('');
     }
   };
 
@@ -346,23 +413,139 @@ export default function PdfExtractorPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setTempApiKey(apiKey);
-            setShowKeyModal(true);
-          }}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
-            apiKey
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-              : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100 animate-pulse'
-          }`}
-        >
-          <Key size={15} />
-          {apiKey ? 'Gemini Key Configured' : 'Configure Gemini API Key'}
-        </button>
+        {/* Live Badges - No Key Button Needed */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            Devanagari OCR Ready
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+            <Sparkles size={13} />
+            Strict 25 Qs/Lesson
+          </span>
+        </div>
       </div>
 
-      {/* Step 1: Upload & Configuration Card */}
+      {/* Real-time Multi-Stage Progress Monitor */}
+      {isExtracting && (
+        <div className="bg-white border-2 border-indigo-300 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6 animate-in fade-in zoom-in-95 duration-300">
+          {/* Header with Live Status & Digital Timer */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-200">
+                  <Cpu size={24} className="animate-pulse" />
+                </div>
+                <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white"></span>
+                </span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-gray-900 text-lg">
+                    AI PDF Extraction & Analysis Pipeline
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 animate-pulse">
+                    LIVE
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Analyzing <strong className="text-gray-800">{pdfFile?.name}</strong> ({(pdfFile ? (pdfFile.size / (1024 * 1024)).toFixed(2) : '0')} MB) with Devanagari OCR & Gemini AI
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 self-end sm:self-center">
+              <div className="px-3.5 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold text-gray-700 flex items-center gap-1.5 shadow-2xs">
+                <Clock size={13} className="text-indigo-600" />
+                <span>Elapsed: {Math.floor(elapsedSeconds / 60).toString().padStart(2, '0')}:{(elapsedSeconds % 60).toString().padStart(2, '0')}s</span>
+              </div>
+              <div className="px-3.5 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-extrabold shadow-sm min-w-[50px] text-center">
+                {progressPercent}%
+              </div>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="space-y-2">
+            <div className="w-full bg-gray-100 rounded-full h-3.5 overflow-hidden p-0.5">
+              <div
+                className="bg-gradient-to-r from-indigo-600 via-purple-600 to-emerald-500 h-full rounded-full transition-all duration-500 ease-out shadow-sm"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs font-medium text-gray-500 pt-0.5">
+              <span className="flex items-center gap-1.5 text-indigo-700 font-bold">
+                <Loader2 size={13} className="animate-spin text-indigo-600 shrink-0" />
+                {EXTRACTION_STAGES[currentStageIdx]?.label}
+              </span>
+              <span className="font-mono text-gray-400">Step {currentStageIdx + 1} of {EXTRACTION_STAGES.length}</span>
+            </div>
+          </div>
+
+          {/* Real-time Operations Checklist Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {EXTRACTION_STAGES.map((stg, i) => {
+              const isCompleted = i < currentStageIdx || progressPercent === 100;
+              const isActive = i === currentStageIdx && progressPercent < 100;
+
+              return (
+                <div
+                  key={stg.id}
+                  className={`p-3.5 rounded-2xl border transition-all ${
+                    isCompleted
+                      ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950 shadow-2xs'
+                      : isActive
+                      ? 'bg-indigo-50/90 border-indigo-300 ring-2 ring-indigo-500/20 shadow-sm'
+                      : 'bg-gray-50/40 border-gray-200 text-gray-400 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className="mt-0.5 shrink-0">
+                      {isCompleted ? (
+                        <CheckCircle2 size={16} className="text-emerald-600" />
+                      ) : isActive ? (
+                        <Loader2 size={16} className="animate-spin text-indigo-600" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex items-center justify-center text-[9px] font-bold text-gray-400">
+                          {stg.id}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className={`text-xs font-bold truncate ${
+                          isCompleted
+                            ? 'text-emerald-900'
+                            : isActive
+                            ? 'text-indigo-950 font-extrabold'
+                            : 'text-gray-500'
+                        }`}
+                      >
+                        {stg.label}
+                      </div>
+                      <div
+                        className={`text-[10px] mt-0.5 line-clamp-2 leading-relaxed ${
+                          isCompleted
+                            ? 'text-emerald-700'
+                            : isActive
+                            ? 'text-indigo-700 font-medium'
+                            : 'text-gray-400'
+                        }`}
+                      >
+                        {stg.detail}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Step 1 & 2 Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* PDF File Dropzone */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-gray-200 shadow-xs flex flex-col justify-between">
@@ -459,173 +642,217 @@ export default function PdfExtractorPage() {
           </div>
         </div>
 
-        {/* Configuration Options */}
+        {/* Step 2: Categorization & Organization Rules (Clean, Spacious UI) */}
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs flex flex-col justify-between space-y-4">
-          <div>
-            <div className="font-bold text-gray-900 text-base mb-1 flex items-center gap-2">
-              <Sliders size={18} className="text-indigo-600" />
-              2. Categorization Rules
-            </div>
-            <p className="text-xs text-gray-500 mb-4">
-              Configure how questions are categorized into Units & Nodes.
-            </p>
-
-            <div className="space-y-4 text-xs">
-              {/* Allocation Strategy */}
-              <div>
-                <label className="font-bold text-gray-700 block mb-1.5">Categorization Mode</label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCategorizeMode('exam_paper')}
-                    className={`p-2.5 rounded-xl border text-left font-semibold transition-all relative ${
-                      categorizeMode === 'exam_paper'
-                        ? 'border-emerald-600 bg-emerald-50/80 text-emerald-950 ring-1 ring-emerald-600'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <span className="absolute -top-2 right-2 text-[9px] bg-emerald-600 text-white px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
-                      Recommended
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <Sparkles size={14} className="text-emerald-600" />
-                      Exam Paper Mode
-                    </div>
-                    <div className="text-[10px] text-gray-500 font-normal mt-0.5">
-                      100 Qs = 4 complete 25-Q lessons under 1 Exam Node.
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setCategorizeMode('auto_syllabus')}
-                    className={`p-2.5 rounded-xl border text-left font-semibold transition-all ${
-                      categorizeMode === 'auto_syllabus'
-                        ? 'border-indigo-600 bg-indigo-50/80 text-indigo-950 ring-1 ring-indigo-600'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <Layers size={14} className="text-indigo-600" />
-                      Auto-Syllabus
-                    </div>
-                    <div className="text-[10px] text-gray-500 font-normal mt-0.5">
-                      Classifies into Grammar, GK, Polity, Math.
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setCategorizeMode('manual')}
-                    className={`p-2.5 rounded-xl border text-left font-semibold transition-all ${
-                      categorizeMode === 'manual'
-                        ? 'border-indigo-600 bg-indigo-50/80 text-indigo-950 ring-1 ring-indigo-600'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <Target size={14} className="text-indigo-600" />
-                      Manual Target
-                    </div>
-                    <div className="text-[10px] text-gray-500 font-normal mt-0.5">
-                      Assign all questions to a specific Unit/Node.
-                    </div>
-                  </button>
-                </div>
+          <div className="space-y-4">
+            <div>
+              <div className="font-bold text-gray-900 text-base flex items-center gap-2">
+                <Sliders size={18} className="text-indigo-600" />
+                2. Lesson & Question Organization
               </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Choose how questions will be structured into your curriculum nodes.
+              </p>
+            </div>
 
-              {/* Target Unit & Node inputs if exam_paper or manual */}
-              {categorizeMode !== 'auto_syllabus' && (
-                <div className="space-y-2 p-3 bg-gray-50 rounded-xl border border-gray-200">
-                  <div>
-                    <label className="font-medium text-gray-600 block mb-1">Target Unit Title</label>
-                    <input
-                      type="text"
-                      value={targetUnit}
-                      onChange={(e) => setTargetUnit(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-800"
-                      placeholder="उदा. पोलीस भरती PYQ प्रश्नपत्रिका"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-medium text-gray-600 block mb-1">
-                      {categorizeMode === 'exam_paper' ? 'Exam Paper Node Title (Auto or Custom)' : 'Target Node Title'}
-                    </label>
-                    <input
-                      type="text"
-                      value={targetNode}
-                      onChange={(e) => setTargetNode(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-800"
-                      placeholder="उदा. SRPF गट २ पुणे पोलीस भरती पेपर २०२४"
-                    />
+            {/* Clean Segmented Tab Switcher */}
+            <div className="grid grid-cols-3 p-1 bg-gray-100 rounded-xl text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setCategorizeMode('exam_paper')}
+                className={`py-2 px-2 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 ${
+                  categorizeMode === 'exam_paper'
+                    ? 'bg-white text-indigo-900 shadow-xs font-bold'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Target size={14} className={categorizeMode === 'exam_paper' ? 'text-indigo-600' : 'text-gray-400'} />
+                Exam Paper
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCategorizeMode('auto_syllabus')}
+                className={`py-2 px-2 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 ${
+                  categorizeMode === 'auto_syllabus'
+                    ? 'bg-white text-indigo-900 shadow-xs font-bold'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Layers size={14} className={categorizeMode === 'auto_syllabus' ? 'text-indigo-600' : 'text-gray-400'} />
+                By Subject
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCategorizeMode('manual')}
+                className={`py-2 px-2 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 ${
+                  categorizeMode === 'manual'
+                    ? 'bg-white text-indigo-900 shadow-xs font-bold'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Sliders size={14} className={categorizeMode === 'manual' ? 'text-indigo-600' : 'text-gray-400'} />
+                Custom
+              </button>
+            </div>
+
+            {/* Mode 1: Exam Paper Mode (Default & Recommended) */}
+            {categorizeMode === 'exam_paper' && (
+              <div className="space-y-3.5 animate-in fade-in duration-200">
+                <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-xs text-emerald-950 flex items-start gap-2.5">
+                  <Sparkles size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <strong>Recommended for Exam Papers:</strong> 100 questions stay in 1 Exam Node, creating <strong>4 complete 25-question lessons</strong> with zero aborted questions.
                   </div>
                 </div>
-              )}
 
-              {/* District & Year Tags */}
-              <div className="grid grid-cols-2 gap-3 pt-1">
                 <div>
-                  <label className="font-semibold text-gray-700 block mb-1 flex items-center gap-1">
-                    <MapPin size={12} className="text-indigo-500" />
-                    District Tag
+                  <label className="text-xs font-bold text-gray-700 block mb-1">
+                    Exam Paper Title (Node Name)
                   </label>
                   <input
                     type="text"
-                    value={districtTag}
-                    onChange={(e) => setDistrictTag(e.target.value)}
-                    placeholder="उदा. पुणे, ठाणे, मुंबई"
-                    className="w-full px-2.5 py-1.5 bg-gray-50 border border-gray-300 rounded-lg text-xs"
+                    value={targetNode}
+                    onChange={(e) => setTargetNode(e.target.value)}
+                    placeholder="उदा. SRPF गट २ पुणे पोलीस भरती पेपर २०२४"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  />
+                  <span className="text-[10px] text-gray-400 block mt-1">
+                    Auto-populated from filename or PDF header.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Mode 2: By Subject */}
+            {categorizeMode === 'auto_syllabus' && (
+              <div className="space-y-3 animate-in fade-in duration-200">
+                <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl text-xs text-indigo-950 flex items-start gap-2.5">
+                  <Layers size={16} className="text-indigo-600 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <strong>Subject Syllabus Split:</strong> Questions will automatically be classified into:
+                    <div className="mt-1 grid grid-cols-2 gap-1 text-[11px] font-semibold text-indigo-800">
+                      <span>• मराठी व्याकरण</span>
+                      <span>• सामान्य ज्ञान व घडामोडी</span>
+                      <span>• राज्यशास्त्र व पोलीस प्रशासन</span>
+                      <span>• अंकगणित व बुद्धिमत्ता</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Mode 3: Custom Node */}
+            {categorizeMode === 'manual' && (
+              <div className="space-y-3 animate-in fade-in duration-200">
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">Target Unit Title</label>
+                  <input
+                    type="text"
+                    value={targetUnit}
+                    onChange={(e) => setTargetUnit(e.target.value)}
+                    placeholder="उदा. पोलीस भरती PYQ प्रश्नपत्रिका"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   />
                 </div>
                 <div>
-                  <label className="font-semibold text-gray-700 block mb-1 flex items-center gap-1">
-                    <Calendar size={12} className="text-indigo-500" />
-                    PYQ Year
-                  </label>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">Target Node Title</label>
                   <input
-                    type="number"
-                    value={pyqYear}
-                    onChange={(e) => setPyqYear(e.target.value)}
-                    placeholder="2024"
-                    className="w-full px-2.5 py-1.5 bg-gray-50 border border-gray-300 rounded-lg text-xs"
+                    type="text"
+                    value={targetNode}
+                    onChange={(e) => setTargetNode(e.target.value)}
+                    placeholder="उदा. विशेष सराव संच"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   />
                 </div>
               </div>
+            )}
 
-              {/* Model Choice */}
+            {/* Clean District & Year Metadata Card */}
+            <div className="grid grid-cols-2 gap-3 pt-1">
               <div>
-                <label className="font-semibold text-gray-700 block mb-1">AI Model Engine</label>
-                <select
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-gray-50 border border-gray-300 rounded-lg text-xs font-medium text-gray-700"
-                >
-                  <option value="gemini-3.5-flash">Gemini 3.5 Flash (Flagship, High Accuracy)</option>
-                  <option value="gemini-3-flash-preview">Gemini 3 Flash Preview (Ultra Fast)</option>
-                  <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (Lightweight)</option>
-                </select>
+                <label className="text-xs font-bold text-gray-700 block mb-1 flex items-center gap-1.5">
+                  <MapPin size={13} className="text-indigo-600" />
+                  District Tag
+                </label>
+                <input
+                  type="text"
+                  value={districtTag}
+                  onChange={(e) => setDistrictTag(e.target.value)}
+                  placeholder="उदा. पुणे, मुंबई"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                />
               </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1 flex items-center gap-1.5">
+                  <Calendar size={13} className="text-indigo-600" />
+                  PYQ Year
+                </label>
+                <input
+                  type="number"
+                  value={pyqYear}
+                  onChange={(e) => setPyqYear(e.target.value)}
+                  placeholder="2024"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-semibold text-gray-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Advanced Settings Accordion */}
+            <div className="pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="text-xs text-gray-500 hover:text-indigo-600 font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <Sliders size={13} />
+                <span>{showAdvanced ? 'Hide Advanced Settings' : 'Show Advanced Settings (AI Model)'}</span>
+                {showAdvanced ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              </button>
+
+              {showAdvanced && (
+                <div className="mt-3 p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-3 animate-in fade-in duration-200">
+                  <div>
+                    <label className="text-xs font-bold text-gray-700 block mb-1 flex items-center gap-1">
+                      <Cpu size={13} className="text-indigo-600" />
+                      AI Model Engine
+                    </label>
+                    <select
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-medium text-gray-700 outline-none"
+                    >
+                      <option value="gemini-3.5-flash">Gemini 3.5 Flash (Flagship, High Accuracy)</option>
+                      <option value="gemini-3-flash-preview">Gemini 3 Flash Preview (Ultra Fast)</option>
+                      <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (Lightweight)</option>
+                    </select>
+                  </div>
+                  {categorizeMode === 'exam_paper' && (
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Unit Title Override</label>
+                      <input
+                        type="text"
+                        value={targetUnit}
+                        onChange={(e) => setTargetUnit(e.target.value)}
+                        placeholder="पोलीस भरती PYQ प्रश्नपत्रिका"
+                        className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="text-[11px] text-gray-400 bg-gray-50 p-2.5 rounded-xl border border-gray-100 flex items-center gap-2">
-            <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-            <span>Strict 25 questions per lesson rule will apply automatically during curriculum build.</span>
+          {/* Footer Guarantee */}
+          <div className="text-[11px] text-gray-500 bg-gray-50 p-2.5 rounded-xl border border-gray-200 flex items-center gap-2">
+            <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+            <span>Guaranteed strict 25 questions per lesson rule applied automatically.</span>
           </div>
         </div>
       </div>
-
-      {/* Progress Banner while extracting */}
-      {isExtracting && (
-        <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-3">
-          <RefreshCw size={28} className="animate-spin text-indigo-600" />
-          <div className="font-bold text-gray-900 text-base">{extractStep}</div>
-          <div className="text-xs text-indigo-700 max-w-md">
-            Gemini Flash is parsing the PDF layout, cleaning Devanagari ligatures, extracting
-            options, and composing Marathi one-line explanations...
-          </div>
-        </div>
-      )}
 
       {/* Extracted Questions Review Studio */}
       {extractedQuestions.length > 0 && !isExtracting && (
@@ -943,75 +1170,6 @@ export default function PdfExtractorPage() {
                 className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs"
               >
                 Save Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Gemini API Key Configuration Modal */}
-      {showKeyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-100">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-              <div className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                <Key size={16} className="text-indigo-600" />
-                Configure Google Gemini API Key
-              </div>
-              <button
-                onClick={() => setShowKeyModal(false)}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 text-xs">
-              <p className="text-gray-600 leading-relaxed">
-                Enter your free Google Gemini API key to extract questions from PDFs. The key will be
-                stored securely in your browser's local storage.
-              </p>
-
-              <div>
-                <label className="font-bold text-gray-700 block mb-1">Gemini API Key</label>
-                <input
-                  type="password"
-                  value={tempApiKey}
-                  onChange={(e) => setTempApiKey(e.target.value)}
-                  placeholder="AIzaSy..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl font-mono text-xs"
-                />
-              </div>
-
-              <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-900 leading-relaxed">
-                <strong>Need a free API key?</strong>
-                <div className="mt-1">
-                  You can generate a 100% free API key from{' '}
-                  <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline text-indigo-600 font-bold"
-                  >
-                    Google AI Studio
-                  </a>{' '}
-                  in 30 seconds.
-                </div>
-              </div>
-            </div>
-
-            <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2">
-              <button
-                onClick={() => setShowKeyModal(false)}
-                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveApiKey}
-                className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs"
-              >
-                Save API Key
               </button>
             </div>
           </div>
