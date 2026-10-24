@@ -437,12 +437,18 @@ export default function CurriculumBuilderPage() {
     );
   };
 
-  // Helper to partition rows of a node into 5 to 6 lessons
+  const QUESTIONS_PER_LESSON = 25;
+
+  // Helper to partition rows of a node into strictly 25 questions per lesson.
+  // Incomplete last lessons (< 25 questions) are aborted.
   const partitionNodeQuestions = (
     nodeQuestions: StagedImportRow[],
     targetLessonsCount: number,
     mode: 'auto_partition' | 'strict_csv'
-  ) => {
+  ): {
+    lessons: { lessonTitle: string; lessonIndex: number; rows: StagedImportRow[] }[];
+    abortedRows: StagedImportRow[];
+  } => {
     if (mode === 'strict_csv') {
       const lessonMap = new Map<string, StagedImportRow[]>();
       for (const row of nodeQuestions) {
@@ -451,33 +457,51 @@ export default function CurriculumBuilderPage() {
         lessonMap.get(title)!.push(row);
       }
       let idx = 1;
-      const result: { lessonTitle: string; lessonIndex: number; rows: StagedImportRow[] }[] = [];
+      const lessons: { lessonTitle: string; lessonIndex: number; rows: StagedImportRow[] }[] = [];
+      const abortedRows: StagedImportRow[] = [];
+
       lessonMap.forEach((rows, title) => {
-        result.push({ lessonTitle: title, lessonIndex: idx++, rows });
+        if (rows.length < QUESTIONS_PER_LESSON) {
+          // Incomplete lesson: abort all rows
+          abortedRows.push(...rows);
+        } else {
+          // Full lesson: take exactly 25 questions
+          lessons.push({
+            lessonTitle: title,
+            lessonIndex: idx++,
+            rows: rows.slice(0, QUESTIONS_PER_LESSON),
+          });
+          if (rows.length > QUESTIONS_PER_LESSON) {
+            abortedRows.push(...rows.slice(QUESTIONS_PER_LESSON));
+          }
+        }
       });
-      return result;
+      return { lessons, abortedRows };
     }
 
-    // Auto-partition mode (5 to 6 lessons per node)
-    const numLessons = Math.max(1, Math.min(targetLessonsCount, nodeQuestions.length));
-    const result: { lessonTitle: string; lessonIndex: number; rows: StagedImportRow[] }[] = [];
+    // Auto-partition mode:
+    // Determine number of full 25-question lessons available
+    const fullLessonCount = Math.floor(nodeQuestions.length / QUESTIONS_PER_LESSON);
+    // If targetLessonsCount is > 0 (e.g. 5 or 6), limit up to that count; if 0, create all full lessons
+    const maxLessons = targetLessonsCount > 0 ? targetLessonsCount : 999;
+    const numLessons = Math.min(maxLessons, fullLessonCount);
+
+    const lessons: { lessonTitle: string; lessonIndex: number; rows: StagedImportRow[] }[] = [];
+    const totalAllocated = numLessons * QUESTIONS_PER_LESSON;
 
     for (let i = 0; i < numLessons; i++) {
       const defaultName = DEFAULT_LESSON_TITLES[i] || `सराव भाग ${i + 1}`;
-      result.push({
+      lessons.push({
         lessonTitle: `Lesson ${i + 1}: ${defaultName}`,
         lessonIndex: i + 1,
-        rows: [],
+        rows: nodeQuestions.slice(i * QUESTIONS_PER_LESSON, (i + 1) * QUESTIONS_PER_LESSON),
       });
     }
 
-    const total = nodeQuestions.length;
-    nodeQuestions.forEach((row, i) => {
-      const lessonIdx = Math.min(Math.floor((i * numLessons) / total), numLessons - 1);
-      result[lessonIdx].rows.push(row);
-    });
+    // Leftover questions that cannot form a full 25-question lesson (or exceed the cap) are aborted
+    const abortedRows = nodeQuestions.slice(totalAllocated);
 
-    return result;
+    return { lessons, abortedRows };
   };
 
   // Rebalance a single node into 5 or 6 lessons
@@ -1249,6 +1273,7 @@ export default function CurriculumBuilderPage() {
         let currentLessons = [...lessons];
         const allQuestionPayloads: any[] = [];
         let totalGeneratedLessons = 0;
+        let totalAbortedQuestionsCount = 0;
 
         for (const composite of uniqueNodes) {
           const [uTitle, nTitle] = composite.split(':::');
@@ -1257,8 +1282,13 @@ export default function CurriculumBuilderPage() {
             (r) => r.unitTitle === uTitle && r.nodeTitle === nTitle
           );
 
-          const partitions = partitionNodeQuestions(nodeRows, lessonsPerNode, hierarchyMode);
+          const { lessons: partitions, abortedRows } = partitionNodeQuestions(
+            nodeRows,
+            lessonsPerNode,
+            hierarchyMode
+          );
           totalGeneratedLessons += partitions.length;
+          totalAbortedQuestionsCount += abortedRows.length;
 
           for (const p of partitions) {
             let lessonRecord = currentLessons.find(
@@ -1320,13 +1350,18 @@ export default function CurriculumBuilderPage() {
         customAlert(
           'Curriculum Built Successfully!',
           <div className="space-y-3 text-sm text-slate-300">
-            <p>Your full curriculum hierarchy has been generated and questions inserted:</p>
+            <p>Your full curriculum hierarchy has been generated and questions inserted (Strict 25 questions per lesson):</p>
             <div className="grid grid-cols-2 gap-2 p-3 bg-slate-900/60 rounded-xl border border-slate-700/50">
               <div><span className="text-slate-400">Units:</span> <span className="font-bold text-white">{uniqueUnitTitles.length}</span></div>
               <div><span className="text-slate-400">Nodes:</span> <span className="font-bold text-white">{uniqueNodes.length}</span></div>
-              <div><span className="text-slate-400">Lessons:</span> <span className="font-bold text-white">{totalGeneratedLessons} ({hierarchyMode === 'auto_partition' ? `${lessonsPerNode}/node` : 'CSV'})</span></div>
+              <div><span className="text-slate-400">Lessons:</span> <span className="font-bold text-white">{totalGeneratedLessons} (25 Qs each)</span></div>
               <div><span className="text-slate-400">Questions:</span> <span className="font-bold text-emerald-400">{allQuestionPayloads.length}</span></div>
             </div>
+            {totalAbortedQuestionsCount > 0 && (
+              <p className="text-xs text-rose-400 font-medium">
+                🛑 Aborted {totalAbortedQuestionsCount} leftover questions because they could not form a full 25-question lesson.
+              </p>
+            )}
             {stagedRows.length - rowsToImport.length > 0 && (
               <p className="text-xs text-amber-400 font-medium">
                 ⚠️ Skipped {stagedRows.length - rowsToImport.length} duplicate questions.
@@ -1411,25 +1446,29 @@ export default function CurriculumBuilderPage() {
     const nSet = new Set(activeRows.map((r) => `${r.unitTitle}:::${r.nodeTitle}`));
 
     let totalLessonsCount = 0;
-    if (hierarchyMode === 'strict_csv') {
-      const lSet = new Set(
-        activeRows.map((r) => `${r.unitTitle}:::${r.nodeTitle}:::${r.lessonTitle}`)
+    let totalAssignedQuestionsCount = 0;
+    let totalAbortedQuestionsCount = 0;
+
+    nSet.forEach((composite) => {
+      const [uTitle, nTitle] = composite.split(':::');
+      const nodeRows = activeRows.filter((r) => r.unitTitle === uTitle && r.nodeTitle === nTitle);
+      const { lessons: parts, abortedRows } = partitionNodeQuestions(
+        nodeRows,
+        lessonsPerNode,
+        hierarchyMode
       );
-      totalLessonsCount = lSet.size;
-    } else {
-      nSet.forEach((composite) => {
-        const [uTitle, nTitle] = composite.split(':::');
-        const nodeRows = activeRows.filter((r) => r.unitTitle === uTitle && r.nodeTitle === nTitle);
-        const parts = partitionNodeQuestions(nodeRows, lessonsPerNode, hierarchyMode);
-        totalLessonsCount += parts.length;
-      });
-    }
+      totalLessonsCount += parts.length;
+      totalAbortedQuestionsCount += abortedRows.length;
+      totalAssignedQuestionsCount += parts.reduce((acc, p) => acc + p.rows.length, 0);
+    });
 
     return {
       unitsCount: uSet.size,
       nodesCount: nSet.size,
       lessonsCount: totalLessonsCount,
-      questionsCount: activeRows.length,
+      questionsCount: totalAssignedQuestionsCount,
+      totalCsvApprovedCount: activeRows.length,
+      abortedQuestionsCount: totalAbortedQuestionsCount,
       skippedCount: stagedRows.filter((r) => r.status === 'skipped').length,
     };
   }, [stagedRows, hierarchyMode, lessonsPerNode]);
@@ -2195,24 +2234,30 @@ export default function CurriculumBuilderPage() {
               </div>
               <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100">
                 <div className="text-[11px] font-semibold text-emerald-700 uppercase">
-                  Ready to Import
+                  Ready (25 Qs/Lesson)
                 </div>
                 <div className="text-xl font-extrabold text-emerald-900 mt-0.5">
                   {hierarchyPreviewStats.questionsCount}
                 </div>
+                <div className="text-[10px] font-semibold text-emerald-700">
+                  {hierarchyPreviewStats.lessonsCount} full lessons
+                </div>
               </div>
               <div
                 className={`p-3 rounded-xl border ${
-                  stagedRows.filter((r) => r.isDuplicate).length > 0
-                    ? 'bg-amber-50/70 border-amber-200'
+                  hierarchyPreviewStats.abortedQuestionsCount > 0
+                    ? 'bg-rose-50/70 border-rose-200'
                     : 'bg-gray-50 border-gray-200'
                 }`}
               >
-                <div className="text-[11px] font-semibold text-amber-700 uppercase">
-                  Duplicates Detected
+                <div className="text-[11px] font-semibold text-rose-700 uppercase">
+                  Aborted Leftover
                 </div>
-                <div className="text-xl font-extrabold text-amber-900 mt-0.5">
-                  {stagedRows.filter((r) => r.isDuplicate).length}
+                <div className="text-xl font-extrabold text-rose-900 mt-0.5">
+                  {hierarchyPreviewStats.abortedQuestionsCount}
+                </div>
+                <div className="text-[10px] font-medium text-rose-600">
+                  &lt; 25 Qs (Incomplete lessons)
                 </div>
               </div>
               <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-100">
@@ -2220,7 +2265,7 @@ export default function CurriculumBuilderPage() {
                   Hierarchy to Build
                 </div>
                 <div className="text-xs font-semibold text-purple-900 mt-1">
-                  {hierarchyPreviewStats.unitsCount} Units • {hierarchyPreviewStats.nodesCount} Nodes
+                  {hierarchyPreviewStats.unitsCount} Units • {hierarchyPreviewStats.nodesCount} Nodes • {hierarchyPreviewStats.lessonsCount} Lessons
                 </div>
               </div>
               <div className={`p-3 rounded-xl border ${answerDistributionStats.isSkewed ? 'bg-rose-50/80 border-rose-200' : 'bg-blue-50/60 border-blue-100'}`}>
@@ -2263,12 +2308,12 @@ export default function CurriculumBuilderPage() {
                 <div>
                   <div className="font-bold text-indigo-950 flex items-center gap-1.5">
                     <Sparkles size={15} className="text-indigo-600" />
-                    Lesson Allocation Strategy
+                    Lesson Allocation Strategy (Strict 25 Questions / Lesson)
                   </div>
                   <p className="text-indigo-700 text-[11px] mt-0.5">
                     {hierarchyMode === 'auto_partition'
-                      ? `Questions in each node are automatically balanced into ${lessonsPerNode} progressive lessons (~${Math.max(1, Math.round(hierarchyPreviewStats.questionsCount / Math.max(1, hierarchyPreviewStats.nodesCount * lessonsPerNode)))} Qs/lesson).`
-                      : 'Using exact lesson titles directly from the CSV columns.'}
+                      ? `Every lesson is guaranteed strictly 25 questions. Leftover questions that cannot form a full 25-question lesson are automatically aborted.`
+                      : 'Using exact lesson titles from CSV. Any lesson with < 25 questions is automatically aborted.'}
                   </p>
                 </div>
 
@@ -2283,7 +2328,7 @@ export default function CurriculumBuilderPage() {
                           : 'text-gray-600 hover:text-indigo-600'
                       }`}
                     >
-                      Auto-Structure
+                      Auto-Structure (25 Qs/Lesson)
                     </button>
                     <button
                       type="button"
@@ -2301,19 +2346,19 @@ export default function CurriculumBuilderPage() {
                   {hierarchyMode === 'auto_partition' && (
                     <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-indigo-200 shadow-xs">
                       <span className="text-[11px] font-semibold text-gray-500 mr-1">Lessons/Node:</span>
-                      {[4, 5, 6].map((num) => (
+                      {[5, 6, 0].map((num) => (
                         <button
                           key={num}
                           type="button"
                           onClick={() => setLessonsPerNode(num)}
-                          className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold transition-all ${
+                          className={`px-2.5 py-1 rounded flex items-center justify-center text-xs font-bold transition-all ${
                             lessonsPerNode === num
                               ? 'bg-indigo-600 text-white shadow-xs'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
-                          title={`Structure every node into ${num} lessons`}
+                          title={num === 0 ? 'Build all available 25-question lessons' : `Target up to ${num} lessons of 25 questions each`}
                         >
-                          {num}
+                          {num === 0 ? 'All Full' : `${num} Lessons`}
                         </button>
                       ))}
                     </div>
@@ -2682,12 +2727,12 @@ export default function CurriculumBuilderPage() {
                     <div>
                       <strong>Automated Structure Generation:</strong>{' '}
                       {hierarchyMode === 'auto_partition'
-                        ? `Each node is configured with ${lessonsPerNode} lessons. Questions are distributed evenly across lessons for high-retention micro-learning.`
-                        : 'Using exact lesson titles as found in the CSV.'}
+                        ? `Each lesson contains strictly 25 questions. Any leftover questions insufficient to form a full 25-question lesson are aborted.`
+                        : 'Using exact lesson titles from CSV (lessons with < 25 questions are aborted).'}
                     </div>
                     {hierarchyMode === 'auto_partition' && (
                       <span className="shrink-0 bg-indigo-600 text-white font-bold px-3 py-1 rounded-full text-xs shadow-xs">
-                        {lessonsPerNode} Lessons / Node Active
+                        Strict 25 Qs / Lesson ({lessonsPerNode === 0 ? 'All Full Lessons' : `Max ${lessonsPerNode} Lessons`})
                       </span>
                     )}
                   </div>
@@ -2735,7 +2780,11 @@ export default function CurriculumBuilderPage() {
                         <div className="p-3 space-y-3">
                           {unitNodes.map((nTitle) => {
                             const nodeRows = unitRows.filter((r) => r.nodeTitle === nTitle);
-                            const partitions = partitionNodeQuestions(nodeRows, lessonsPerNode, hierarchyMode);
+                            const { lessons: partitions, abortedRows } = partitionNodeQuestions(
+                              nodeRows,
+                              lessonsPerNode,
+                              hierarchyMode
+                            );
 
                             return (
                               <div
@@ -2747,26 +2796,59 @@ export default function CurriculumBuilderPage() {
                                     <Target size={14} className="text-indigo-600" />
                                     <span>Node: {nTitle}</span>
                                   </div>
-                                  <span className="text-[11px] font-bold text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-full">
-                                    {partitions.length} Lessons • {nodeRows.length} Qs
-                                  </span>
-                                </div>
-                                <div className="ml-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                                  {partitions.map((p) => (
-                                    <div
-                                      key={p.lessonTitle}
-                                      className="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-200 text-gray-700"
-                                    >
-                                      <div className="flex items-center gap-1.5 truncate mr-2">
-                                        <BookOpen size={12} className="text-indigo-500 shrink-0" />
-                                        <span className="font-medium text-xs truncate">{p.lessonTitle}</span>
-                                      </div>
-                                      <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded shrink-0">
-                                        {p.rows.length} Qs
+                                  <div className="flex items-center gap-2">
+                                    {abortedRows.length > 0 && (
+                                      <span
+                                        className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full flex items-center gap-1"
+                                        title={`${abortedRows.length} leftover questions cannot form a full 25-question lesson and will be aborted.`}
+                                      >
+                                        <AlertTriangle size={12} className="text-rose-600" />
+                                        {abortedRows.length} Aborted
                                       </span>
-                                    </div>
-                                  ))}
+                                    )}
+                                    <span className="text-[11px] font-bold text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-full">
+                                      {partitions.length} Lessons • {partitions.length * 25} Qs (25/lesson)
+                                    </span>
+                                  </div>
                                 </div>
+
+                                {partitions.length === 0 ? (
+                                  <div className="ml-3 p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs flex items-center gap-2">
+                                    <AlertTriangle size={15} className="text-rose-600 shrink-0" />
+                                    <span>
+                                      Node Aborted: Only has {nodeRows.length} questions. Minimum 25 questions required for a complete lesson. All {nodeRows.length} questions excluded.
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="ml-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                      {partitions.map((p) => (
+                                        <div
+                                          key={p.lessonTitle}
+                                          className="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-200 text-gray-700"
+                                        >
+                                          <div className="flex items-center gap-1.5 truncate mr-2">
+                                            <BookOpen size={12} className="text-indigo-500 shrink-0" />
+                                            <span className="font-medium text-xs truncate">{p.lessonTitle}</span>
+                                          </div>
+                                          <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded shrink-0 flex items-center gap-1">
+                                            <Check size={11} className="text-emerald-600" />
+                                            25 Qs
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    {abortedRows.length > 0 && (
+                                      <div className="ml-3 p-2 bg-amber-50/80 border border-amber-200 rounded-lg text-amber-900 text-[11px] flex items-center justify-between">
+                                        <span className="flex items-center gap-1.5">
+                                          <AlertTriangle size={13} className="text-amber-600 shrink-0" />
+                                          <span>Last lesson aborted: <strong>{abortedRows.length} leftover questions</strong> excluded (cannot form a full 25-question lesson).</span>
+                                        </span>
+                                        <span className="font-mono text-[10px] text-amber-700 font-semibold">Strict 25 Qs/Lesson</span>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
                               </div>
                             );
                           })}
