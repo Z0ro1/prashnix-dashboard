@@ -365,7 +365,12 @@ ${explanationPart}`;
       const explanation = (q.content?.explanation || '').toLowerCase();
       const district = (q.content?.district_tag || '').toLowerCase();
       const s = search.toLowerCase();
-      return text.includes(s) || explanation.includes(s) || district.includes(s);
+      return (
+        text.includes(s) ||
+        explanation.includes(s) ||
+        district.includes(s) ||
+        (q.display_id || '').toLowerCase().includes(s)
+      );
     });
   }, [questions, search, showDuplicatesOnly, duplicateIdSet]);
 
@@ -481,6 +486,11 @@ ${explanationPart}`;
                       <span className="text-xs font-mono font-semibold px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
                         #{idx + 1}
                       </span>
+                      {q.display_id && (
+                        <span className="text-xs font-mono font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200/80 rounded flex items-center gap-1">
+                          ID: #{q.display_id}
+                        </span>
+                      )}
                       {isDup && (
                         <span className="text-xs flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-semibold">
                           <AlertTriangle size={12} /> Duplicate Question

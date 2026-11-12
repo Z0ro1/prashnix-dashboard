@@ -27,10 +27,17 @@ import {
   RefreshCw,
   Copy,
   FileText,
+  ArrowRightLeft,
+  Move,
+  Split,
+  AlertCircle,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import Link from 'next/link';
 import Papa from 'papaparse';
 import { useFeedback } from '@/components/FeedbackDialog';
+import { generateRandom6DigitId } from '@/lib/idUtils';
 
 export const DEFAULT_LESSON_TITLES = [
   'पायाभूत संकल्पना व सराव',
@@ -193,6 +200,24 @@ export default function CurriculumBuilderPage() {
   const [lessonsPerNode, setLessonsPerNode] = useState<number>(5);
   const [detectedExamTitle, setDetectedExamTitle] = useState<string>('');
   const [consolidateCustomTitle, setConsolidateCustomTitle] = useState<string>('');
+
+  // Move & Drag-Drop State (Enforcing 8 Nodes / Unit & 5 Lessons / Node)
+  const [moveModal, setMoveModal] = useState<{
+    type: 'lesson' | 'node' | 'batch_lessons';
+    itemIds: string[];
+    sourceParentId: string;
+    targetUnitId: string;
+    targetNodeId: string;
+    title: string;
+  } | null>(null);
+  const [selectedLessonIds, setSelectedLessonIds] = useState<Set<string>>(new Set());
+  const [draggedItem, setDraggedItem] = useState<{
+    type: 'lesson' | 'node';
+    id: string;
+    sourceParentId: string;
+    title: string;
+  } | null>(null);
+  const [dragOverTargetId, setDragOverTargetId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -533,7 +558,7 @@ export default function CurriculumBuilderPage() {
     return { lessons, abortedRows };
   };
 
-  // Consolidate staged questions into 1 Exam Node or by Subject Unit
+  // Consolidate staged questions into Structured 5-Lesson Nodes & Units (8 Nodes max)
   const handleConsolidateQuestions = (mode: 'exam' | 'unit') => {
     if (stagedRows.length === 0) return;
 
@@ -546,36 +571,70 @@ export default function CurriculumBuilderPage() {
           : stagedRows[0]?.nodeTitle || 'पोलीस भरती संपूर्ण सराव प्रश्नपत्रिका');
 
       const examUnit = 'पोलीस भरती PYQ प्रश्नपत्रिका';
+      const approvedCount = stagedRows.filter((r) => r.status !== 'skipped').length;
+      const totalUnits = Math.max(1, Math.ceil(approvedCount / 1000));
+      const totalNodes = Math.max(1, Math.ceil(approvedCount / 125));
 
+      let activeIdx = 0;
       setStagedRows((prev) =>
-        prev.map((r) => ({
-          ...r,
-          unitTitle: examUnit,
-          nodeTitle: examName,
-          status: r.status === 'skipped' ? 'skipped' : 'valid',
-        }))
+        prev.map((r) => {
+          if (r.status === 'skipped') return r;
+          const currentIdx = activeIdx++;
+          const globalLessonIdx = Math.floor(currentIdx / 25);
+          const globalNodeIdx = Math.floor(globalLessonIdx / 5);
+          const globalUnitIdx = Math.floor(globalNodeIdx / 8);
+          const nodeInUnitIdx = (globalNodeIdx % 8) + 1;
+          const lessonInNodeIdx = (globalLessonIdx % 5) + 1;
+
+          const unitTitle = totalUnits > 1 ? `${examUnit} - भाग ${globalUnitIdx + 1}` : examUnit;
+          const nodeTitle =
+            totalNodes > 1
+              ? `${examName} - घटक ${nodeInUnitIdx} (संच ${globalNodeIdx + 1})`
+              : examName;
+          const lessonTitle = `Lesson ${lessonInNodeIdx}: ${
+            DEFAULT_LESSON_TITLES[lessonInNodeIdx - 1] || `सराव भाग ${lessonInNodeIdx}`
+          }`;
+
+          return {
+            ...r,
+            unitTitle,
+            nodeTitle,
+            lessonTitle,
+            status: 'valid' as const,
+          };
+        })
       );
 
-      const approvedCount = stagedRows.filter((r) => r.status !== 'skipped').length;
       const fullLessons = Math.floor(approvedCount / 25);
       toast(
         'success',
-        'Consolidated into 1 Exam Node!',
-        `All ${approvedCount} questions merged into "${examName}" under Unit "${examUnit}" (forms ${fullLessons} complete 25-question lessons).`
+        'Consolidated into 5-Lesson Nodes & Units!',
+        `Structured ${approvedCount} questions into ${totalUnits} Unit(s), ${totalNodes} Node(s) (max 5 lessons), and ${fullLessons} Lessons (25 Qs each).`
       );
     } else {
-      // Consolidate by Unit: combine all questions in each unit into a single comprehensive node
+      // Consolidate by Unit: combine questions in each unit into structured 5-lesson nodes
+      const approvedCount = stagedRows.filter((r) => r.status !== 'skipped').length;
+      let activeIdx = 0;
       setStagedRows((prev) =>
-        prev.map((r) => ({
-          ...r,
-          nodeTitle: `${r.unitTitle} - संपूर्ण सराव संच`,
-          status: r.status === 'skipped' ? 'skipped' : 'valid',
-        }))
+        prev.map((r) => {
+          if (r.status === 'skipped') return r;
+          const currentIdx = activeIdx++;
+          const nodeIdx = Math.floor(currentIdx / 125) + 1;
+          const lessonIdx = (Math.floor(currentIdx / 25) % 5) + 1;
+          return {
+            ...r,
+            nodeTitle: `${r.unitTitle} - घटक ${nodeIdx}`,
+            lessonTitle: `Lesson ${lessonIdx}: ${
+              DEFAULT_LESSON_TITLES[lessonIdx - 1] || `सराव भाग ${lessonIdx}`
+            }`,
+            status: 'valid' as const,
+          };
+        })
       );
       toast(
         'success',
         'Consolidated by Unit!',
-        'Questions inside each subject unit were combined into comprehensive 25-question lessons.'
+        `Combined ${approvedCount} questions into structured 5-lesson nodes.`
       );
     }
   };
@@ -780,6 +839,349 @@ export default function CurriculumBuilderPage() {
     });
   };
 
+  // --- AUTO-CASCADE & SPLIT NODE ---
+  // Takes any node with > 5 lessons and cascades excess lessons into new nodes (5 lessons each) and units (max 8 nodes)
+  const handleAutoCascadeNode = async (nodeId: string) => {
+    const sourceNode = nodes.find((n) => n.id === nodeId);
+    if (!sourceNode) return;
+
+    const nodeLessons = lessons
+      .filter((l) => l.node_id === nodeId)
+      .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+
+    if (nodeLessons.length <= 5) {
+      customAlert(
+        'Node within Limits',
+        `This node has ${nodeLessons.length} lessons, which already complies with the 5-lesson limit. No cascade needed.`,
+        'info'
+      );
+      return;
+    }
+
+    const excessCount = nodeLessons.length - 5;
+    const newNodesNeeded = Math.ceil(excessCount / 5);
+
+    confirm({
+      title: `Auto-Cascade Node "${sourceNode.title}"?`,
+      message: `This node currently has ${nodeLessons.length} lessons (limit is 5 lessons per node).
+
+Auto-Cascade will:
+1. Keep the first 5 lessons in this node ("${sourceNode.title}").
+2. Group the remaining ${excessCount} lessons into ${newNodesNeeded} new node(s) (5 lessons each).
+3. Place nodes under the current Unit (max 8 nodes).
+4. If the Unit reaches 8 nodes, automatically create/use the next Unit!
+
+Do you want to proceed?`,
+      confirmText: `Cascade into ${newNodesNeeded + 1} Nodes`,
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          const [uRes, nRes, lRes] = await Promise.all([
+            supabase.from('units').select('*').order('order_index', { ascending: true }),
+            supabase.from('nodes').select('*').order('order_index', { ascending: true }),
+            supabase.from('lessons').select('*').order('order_index', { ascending: true }),
+          ]);
+
+          const freshUnits = uRes.data ? [...uRes.data] : [...units];
+          const freshNodes = nRes.data ? [...nRes.data] : [...nodes];
+          const freshLessons = lRes.data ? [...lRes.data] : [...lessons];
+
+          const sourceUnit = freshUnits.find((u) => u.id === sourceNode.unit_id) || freshUnits[0];
+
+          // 1. Keep first 5 lessons in sourceNode and re-index them 1..5
+          for (let i = 0; i < 5; i++) {
+            const l = nodeLessons[i];
+            const newDisplayId = `${sourceNode.display_id}.${i + 1}`;
+            await supabase
+              .from('lessons')
+              .update({ order_index: i + 1, display_id: newDisplayId })
+              .eq('id', l.id);
+          }
+
+          // 2. Cascade remaining lessons in chunks of 5
+          const remainingLessons = nodeLessons.slice(5);
+          let activeUnit = sourceUnit;
+          let activeUnitNodes = freshNodes.filter((n) => n.unit_id === activeUnit.id);
+          let partNumber = 2;
+
+          for (let i = 0; i < remainingLessons.length; i += 5) {
+            const chunk = remainingLessons.slice(i, i + 5);
+
+            // If current unit already has 8 nodes, spill over into next unit
+            if (activeUnitNodes.length >= 8) {
+              const nextUnitOrder =
+                freshUnits.length > 0 ? Math.max(...freshUnits.map((u) => u.order_index || 0)) + 1 : 1;
+              const newUnitDisplayId = nextUnitOrder.toString().padStart(2, '0');
+
+              const { data: newUnit, error: uErr } = await supabase
+                .from('units')
+                .insert({
+                  title: `${sourceUnit.title} (Part ${freshUnits.length + 1})`,
+                  display_id: newUnitDisplayId,
+                  theme_color: sourceUnit.theme_color || '#4f46e5',
+                  order_index: nextUnitOrder,
+                })
+                .select()
+                .single();
+              if (uErr) throw uErr;
+
+              freshUnits.push(newUnit);
+              activeUnit = newUnit;
+              activeUnitNodes = [];
+            }
+
+            // Create new node under activeUnit
+            const nextNodeOrder =
+              activeUnitNodes.length > 0
+                ? Math.max(...activeUnitNodes.map((n) => n.order_index || 0)) + 1
+                : 1;
+            const newNodeDisplayId = `${activeUnit.display_id}.${nextNodeOrder}`;
+
+            const { data: newNode, error: nErr } = await supabase
+              .from('nodes')
+              .insert({
+                unit_id: activeUnit.id,
+                title: `${sourceNode.title} (Part ${partNumber})`,
+                display_id: newNodeDisplayId,
+                node_type: sourceNode.node_type || 'learning',
+                animation_preset: sourceNode.animation_preset || 'heartbeat',
+                icon_name: sourceNode.icon_name || 'star',
+                info_note: sourceNode.info_note || '',
+                order_index: nextNodeOrder,
+              })
+              .select()
+              .single();
+            if (nErr) throw nErr;
+
+            freshNodes.push(newNode);
+            activeUnitNodes.push(newNode);
+            partNumber++;
+
+            // Move the lessons in this chunk into newNode
+            for (let lIdx = 0; lIdx < chunk.length; lIdx++) {
+              const lesson = chunk[lIdx];
+              const lessonDisplayId = `${newNode.display_id}.${lIdx + 1}`;
+              const { error: lErr } = await supabase
+                .from('lessons')
+                .update({
+                  node_id: newNode.id,
+                  order_index: lIdx + 1,
+                  display_id: lessonDisplayId,
+                })
+                .eq('id', lesson.id);
+              if (lErr) throw lErr;
+            }
+          }
+
+          await fetchData();
+          toast(
+            'success',
+            'Auto-Cascade Completed!',
+            `Split ${nodeLessons.length} lessons into ${newNodesNeeded + 1} nodes of 5 lessons each across units.`
+          );
+        } catch (err: unknown) {
+          toast('error', 'Cascade Failed', err instanceof Error ? err.message : 'Unknown error');
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
+  };
+
+  // --- MOVE LESSON(S) & MOVE NODE ---
+  const handleMoveLesson = async (lessonIds: string[], targetNodeId: string) => {
+    if (!lessonIds || lessonIds.length === 0 || !targetNodeId) return;
+
+    const targetNode = nodes.find((n) => n.id === targetNodeId);
+    if (!targetNode) return;
+
+    const targetNodeLessons = lessons.filter((l) => l.node_id === targetNodeId);
+    const newTotal = targetNodeLessons.length + lessonIds.length;
+
+    if (newTotal > 5) {
+      const proceed = await new Promise<boolean>((resolve) => {
+        confirm({
+          title: 'Target Node Exceeds 5 Lessons Limit',
+          message: `Target node "${targetNode.title}" currently has ${targetNodeLessons.length} lessons. Adding ${lessonIds.length} lesson(s) will make it ${newTotal}/5 lessons. Do you still want to move?`,
+          confirmText: 'Move Anyway',
+          onConfirm: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      });
+      if (!proceed) return;
+    }
+
+    setActionLoading(true);
+    try {
+      let nextOrder =
+        targetNodeLessons.length > 0
+          ? Math.max(...targetNodeLessons.map((l) => l.order_index || 0)) + 1
+          : 1;
+
+      for (const lId of lessonIds) {
+        const lessonDisplayId = `${targetNode.display_id}.${nextOrder}`;
+        const { error } = await supabase
+          .from('lessons')
+          .update({
+            node_id: targetNodeId,
+            order_index: nextOrder,
+            display_id: lessonDisplayId,
+          })
+          .eq('id', lId);
+        if (error) throw error;
+        nextOrder++;
+      }
+
+      setMoveModal(null);
+      setSelectedLessonIds(new Set());
+      await fetchData();
+      toast(
+        'success',
+        'Lesson(s) Moved!',
+        `Successfully moved ${lessonIds.length} lesson(s) to "${targetNode.title}".`
+      );
+    } catch (err: unknown) {
+      toast('error', 'Move Failed', err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleMoveNode = async (nodeId: string, targetUnitId: string) => {
+    const sourceNode = nodes.find((n) => n.id === nodeId);
+    const targetUnit = units.find((u) => u.id === targetUnitId);
+    if (!sourceNode || !targetUnit) return;
+
+    const targetUnitNodes = nodes.filter((n) => n.unit_id === targetUnitId);
+    if (targetUnitNodes.length >= 8) {
+      const proceed = await new Promise<boolean>((resolve) => {
+        confirm({
+          title: 'Target Unit Exceeds 8 Nodes Limit',
+          message: `Target unit "${targetUnit.title}" currently has ${targetUnitNodes.length} nodes (limit is 8). Moving this node here will make it ${targetUnitNodes.length + 1}/8 nodes. Do you still want to proceed?`,
+          confirmText: 'Move Anyway',
+          onConfirm: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      });
+      if (!proceed) return;
+    }
+
+    setActionLoading(true);
+    try {
+      const nextNodeOrder =
+        targetUnitNodes.length > 0
+          ? Math.max(...targetUnitNodes.map((n) => n.order_index || 0)) + 1
+          : 1;
+      const newNodeDisplayId = `${targetUnit.display_id}.${nextNodeOrder}`;
+
+      const { error: nErr } = await supabase
+        .from('nodes')
+        .update({
+          unit_id: targetUnitId,
+          order_index: nextNodeOrder,
+          display_id: newNodeDisplayId,
+        })
+        .eq('id', nodeId);
+      if (nErr) throw nErr;
+
+      // Update display_id of all child lessons
+      const nodeLessons = lessons.filter((l) => l.node_id === nodeId);
+      for (const l of nodeLessons) {
+        await supabase
+          .from('lessons')
+          .update({
+            display_id: `${newNodeDisplayId}.${l.order_index}`,
+          })
+          .eq('id', l.id);
+      }
+
+      setMoveModal(null);
+      await fetchData();
+      toast('success', 'Node Moved!', `Node moved to Unit "${targetUnit.title}".`);
+    } catch (err: unknown) {
+      toast('error', 'Move Failed', err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const openMoveModal = (
+    type: 'lesson' | 'node' | 'batch_lessons',
+    itemId: string | string[],
+    sourceParentId: string,
+    title: string
+  ) => {
+    const itemIds = Array.isArray(itemId) ? itemId : [itemId];
+    const defaultUnit = units[0]?.id || '';
+    const defaultNodes = nodes.filter((n) => n.unit_id === defaultUnit);
+    const defaultNode = defaultNodes[0]?.id || '';
+
+    setMoveModal({
+      type,
+      itemIds,
+      sourceParentId,
+      targetUnitId: defaultUnit,
+      targetNodeId: defaultNode,
+      title,
+    });
+  };
+
+  // Drag and Drop event handlers
+  const handleDragStart = (
+    e: React.DragEvent,
+    type: 'lesson' | 'node',
+    id: string,
+    sourceParentId: string,
+    title: string
+  ) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({ type, id, sourceParentId, title }));
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedItem({ type, id, sourceParentId, title });
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+    setDragOverTargetId(null);
+  };
+
+  const handleDropOnNode = (e: React.DragEvent, targetNodeId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTargetId(null);
+
+    try {
+      const dataStr = e.dataTransfer.getData('application/json');
+      if (!dataStr) return;
+      const data = JSON.parse(dataStr);
+      if (data.type === 'lesson' && data.sourceParentId !== targetNodeId) {
+        handleMoveLesson([data.id], targetNodeId);
+      }
+    } catch (err) {
+      console.error('Drop error on node:', err);
+    } finally {
+      setDraggedItem(null);
+    }
+  };
+
+  const handleDropOnUnit = (e: React.DragEvent, targetUnitId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTargetId(null);
+
+    try {
+      const dataStr = e.dataTransfer.getData('application/json');
+      if (!dataStr) return;
+      const data = JSON.parse(dataStr);
+      if (data.type === 'node' && data.sourceParentId !== targetUnitId) {
+        handleMoveNode(data.id, targetUnitId);
+      }
+    } catch (err) {
+      console.error('Drop error on unit:', err);
+    } finally {
+      setDraggedItem(null);
+    }
+  };
+
   // Save manual add / edit
   const handleSaveAdd = async () => {
     if (activeModal !== 'question' && !addForm.title.trim())
@@ -860,7 +1262,7 @@ export default function CurriculumBuilderPage() {
           const parentLesson = lessons.find((l) => l.id === selectedParentId);
           const { error } = await supabase.from('questions').insert({
             lesson_id: parentLesson?.id,
-            display_id: `${parentLesson?.display_id}.${Date.now()}`,
+            display_id: generateRandom6DigitId(),
             is_global_pool: false,
             question_type: 'multiple_choice',
             content: contentPayload,
@@ -1430,7 +1832,7 @@ export default function CurriculumBuilderPage() {
 
               allQuestionPayloads.push({
                 lesson_id: lessonRecord.id,
-                display_id: `${lessonRecord.display_id}.${qNum}_${uniqueSuffix}`,
+                display_id: generateRandom6DigitId(),
                 is_global_pool: false,
                 question_type: 'multiple_choice',
                 content: {
@@ -1496,7 +1898,7 @@ export default function CurriculumBuilderPage() {
 
           return {
             lesson_id: parentLesson.id,
-            display_id: `${parentLesson.display_id}.${qNum}_${uniqueSuffix}`,
+            display_id: generateRandom6DigitId(),
             is_global_pool: false,
             question_type: 'multiple_choice',
             content: {
@@ -1850,8 +2252,21 @@ export default function CurriculumBuilderPage() {
                         n.has(unit.id) ? n.delete(unit.id) : n.add(unit.id);
                         setExpandedUnits(n);
                       }}
-                      className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
-                        isSelectedUnit
+                      onDragOver={(e) => {
+                        if (draggedItem?.type === 'node' && draggedItem.sourceParentId !== unit.id) {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          setDragOverTargetId(unit.id);
+                        }
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverTargetId === unit.id) setDragOverTargetId(null);
+                      }}
+                      onDrop={(e) => handleDropOnUnit(e, unit.id)}
+                      className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all ${
+                        dragOverTargetId === unit.id
+                          ? 'ring-2 ring-indigo-500 bg-indigo-50/70 border-l-4 border-indigo-600'
+                          : isSelectedUnit
                           ? 'bg-indigo-50 border-l-4 border-indigo-600'
                           : 'hover:bg-gray-50 border-l-4 border-transparent'
                       }`}
@@ -1871,8 +2286,15 @@ export default function CurriculumBuilderPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-[10px] bg-gray-100 text-gray-500 font-medium px-1.5 py-0.5 rounded-full">
-                          {unitNodes.length} nodes
+                        <span
+                          className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                            unitNodes.length > 8
+                              ? 'bg-amber-100 text-amber-800 font-extrabold border border-amber-300'
+                              : 'bg-gray-100 text-gray-500'
+                          }`}
+                          title={unitNodes.length > 8 ? `Over limit! ${unitNodes.length} nodes (limit is 8)` : undefined}
+                        >
+                          {unitNodes.length > 8 ? `⚠️ ${unitNodes.length}/8` : `${unitNodes.length}/8 nodes`}
                         </span>
                         <button
                           onClick={(e) => {
@@ -1903,16 +2325,37 @@ export default function CurriculumBuilderPage() {
 
                             return (
                               <div key={node.id}>
-                                {/* Node Row */}
+                                {/* Node Row (Draggable to move unit, Drop target for lessons) */}
                                 <div
+                                  draggable
+                                  onDragStart={(e) =>
+                                    handleDragStart(e, 'node', node.id, unit.id, node.title)
+                                  }
+                                  onDragEnd={handleDragEnd}
+                                  onDragOver={(e) => {
+                                    if (
+                                      draggedItem?.type === 'lesson' &&
+                                      draggedItem.sourceParentId !== node.id
+                                    ) {
+                                      e.preventDefault();
+                                      e.dataTransfer.dropEffect = 'move';
+                                      setDragOverTargetId(node.id);
+                                    }
+                                  }}
+                                  onDragLeave={() => {
+                                    if (dragOverTargetId === node.id) setDragOverTargetId(null);
+                                  }}
+                                  onDrop={(e) => handleDropOnNode(e, node.id)}
                                   onClick={() => {
                                     selectItem('node', node);
                                     const n = new Set(expandedNodes);
                                     n.has(node.id) ? n.delete(node.id) : n.add(node.id);
                                     setExpandedNodes(n);
                                   }}
-                                  className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
-                                    isSelectedNode
+                                  className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-all ${
+                                    dragOverTargetId === node.id
+                                      ? 'ring-2 ring-indigo-500 bg-indigo-50'
+                                      : isSelectedNode
                                       ? 'bg-indigo-50 text-indigo-700 font-semibold'
                                       : 'hover:bg-gray-50 text-gray-700'
                                   }`}
@@ -1936,9 +2379,42 @@ export default function CurriculumBuilderPage() {
                                     <span className="truncate">{node.title}</span>
                                   </div>
                                   <div className="flex items-center gap-1 shrink-0">
-                                    <span className="text-[10px] bg-gray-100 text-gray-500 font-medium px-1.5 py-0.5 rounded-full">
-                                      {nodeLessons.length}
+                                    <span
+                                      className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                                        nodeLessons.length > 5
+                                          ? 'bg-rose-100 text-rose-700 font-extrabold border border-rose-300 flex items-center gap-0.5'
+                                          : 'bg-gray-100 text-gray-500'
+                                      }`}
+                                      title={
+                                        nodeLessons.length > 5
+                                          ? `Over limit! ${nodeLessons.length} lessons (limit is 5)`
+                                          : undefined
+                                      }
+                                    >
+                                      {nodeLessons.length > 5 && '⚠️'} {nodeLessons.length}/5
                                     </span>
+                                    {nodeLessons.length > 5 && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleAutoCascadeNode(node.id);
+                                        }}
+                                        className="text-rose-600 hover:bg-rose-100 p-1 rounded font-bold transition-colors"
+                                        title={`Over limit! Click to Auto-Cascade ${nodeLessons.length} lessons into 5-lesson nodes`}
+                                      >
+                                        <Split size={13} />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openMoveModal('node', node.id, unit.id, node.title);
+                                      }}
+                                      className="text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 p-1 rounded transition-colors"
+                                      title="Move Node to another Unit"
+                                    >
+                                      <Move size={13} />
+                                    </button>
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -1968,6 +2444,17 @@ export default function CurriculumBuilderPage() {
                                         return (
                                           <div
                                             key={lesson.id}
+                                            draggable
+                                            onDragStart={(e) =>
+                                              handleDragStart(
+                                                e,
+                                                'lesson',
+                                                lesson.id,
+                                                node.id,
+                                                lesson.title
+                                              )
+                                            }
+                                            onDragEnd={handleDragEnd}
                                             onClick={() => selectItem('lesson', lesson)}
                                             className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer text-xs transition-colors ${
                                               isSelectedLesson
@@ -1985,6 +2472,23 @@ export default function CurriculumBuilderPage() {
                                                 }
                                               />
                                               <span className="truncate">{lesson.title}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  openMoveModal(
+                                                    'lesson',
+                                                    lesson.id,
+                                                    node.id,
+                                                    lesson.title
+                                                  );
+                                                }}
+                                                className="text-gray-400 hover:text-indigo-600 hover:bg-indigo-100 p-1 rounded transition-colors"
+                                                title="Move Lesson to another Node"
+                                              >
+                                                <ArrowRightLeft size={12} />
+                                              </button>
                                             </div>
                                           </div>
                                         );
@@ -2036,6 +2540,40 @@ export default function CurriculumBuilderPage() {
                   />
                 </div>
                 <div className="flex items-center gap-2">
+                  {selection.type === 'node' && (
+                    <button
+                      onClick={() =>
+                        openMoveModal(
+                          'node',
+                          selection.item.id,
+                          selection.item.unit_id,
+                          selection.item.title
+                        )
+                      }
+                      className="px-3 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors"
+                      title="Move Node to another Unit"
+                    >
+                      <Move size={14} className="text-indigo-600" />
+                      Move Node
+                    </button>
+                  )}
+                  {selection.type === 'lesson' && (
+                    <button
+                      onClick={() =>
+                        openMoveModal(
+                          'lesson',
+                          selection.item.id,
+                          selection.item.node_id,
+                          selection.item.title
+                        )
+                      }
+                      className="px-3 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors"
+                      title="Move Lesson to another Node"
+                    >
+                      <ArrowRightLeft size={14} className="text-indigo-600" />
+                      Move Lesson
+                    </button>
+                  )}
                   <button
                     onClick={() => handleDelete(selection.type + 's', selection.item.id)}
                     className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -2136,16 +2674,83 @@ export default function CurriculumBuilderPage() {
                       />
                     </div>
 
+                    {/* OVER-LIMIT WARNING & AUTO-CASCADE CARD */}
+                    {(() => {
+                      const currentNodeLessons = lessons.filter(
+                        (l) => l.node_id === selection.item.id
+                      );
+                      const isOverLimit = currentNodeLessons.length > 5;
+                      return (
+                        <div
+                          className={`col-span-2 p-4 rounded-xl border ${
+                            isOverLimit
+                              ? 'bg-rose-50 border-rose-200'
+                              : 'bg-gray-50 border-gray-200'
+                          }`}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                              <div className="text-xs font-bold flex items-center gap-1.5">
+                                {isOverLimit ? (
+                                  <>
+                                    <AlertTriangle size={16} className="text-rose-600" />
+                                    <span className="text-rose-900 font-extrabold">
+                                      Over Limit: {currentNodeLessons.length} Lessons Found (Limit is 5 per Node)
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles size={16} className="text-indigo-600" />
+                                    <span className="text-gray-900">
+                                      Node Lessons Capacity ({currentNodeLessons.length}/5 Lessons)
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                              <p
+                                className={`text-[11px] mt-1 ${
+                                  isOverLimit ? 'text-rose-700' : 'text-gray-500'
+                                }`}
+                              >
+                                {isOverLimit
+                                  ? `This node exceeds the 5-lesson limit by ${
+                                      currentNodeLessons.length - 5
+                                    } lessons. Auto-Cascade will keep the first 5 lessons here and automatically split the rest into ${Math.ceil(
+                                      (currentNodeLessons.length - 5) / 5
+                                    )} new nodes across units (max 8 nodes per unit).`
+                                  : 'Auto-Cascade splits lessons exceeding the 5-lesson limit across units automatically.'}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleAutoCascadeNode(selection.item.id)}
+                                disabled={actionLoading}
+                                className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-sm transition-all ${
+                                  isOverLimit
+                                    ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-200'
+                                    : 'bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                }`}
+                              >
+                                <Split size={14} />
+                                Auto-Cascade / Split Node
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* Quick Rebalance Card for this node */}
                     <div className="col-span-2 pt-4 mt-2 border-t border-gray-100 bg-gray-50/80 p-4 rounded-xl border border-gray-200">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                           <div className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
                             <Sparkles size={14} className="text-indigo-600" />
-                            Node Lessons Restructuring
+                            Redistribute Questions within this Node
                           </div>
                           <p className="text-[11px] text-gray-500 mt-0.5">
-                            Re-balance all existing questions in this node into 5 or 6 structured lessons.
+                            Redistribute existing questions evenly into 5 or 6 structured lessons.
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -2168,6 +2773,145 @@ export default function CurriculumBuilderPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Node Lessons Batch Manager */}
+                    {(() => {
+                      const currentNodeLessons = lessons
+                        .filter((l) => l.node_id === selection.item.id)
+                        .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+
+                      if (currentNodeLessons.length === 0) return null;
+
+                      const selectedCount = currentNodeLessons.filter((l) =>
+                        selectedLessonIds.has(l.id)
+                      ).length;
+
+                      return (
+                        <div className="col-span-2 pt-2 space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-gray-100/70 p-3 rounded-xl border border-gray-200">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-gray-800">
+                                Lessons in this Node ({currentNodeLessons.length})
+                              </span>
+                              {selectedCount > 0 && (
+                                <span className="text-[11px] bg-indigo-600 text-white font-bold px-2 py-0.5 rounded-full">
+                                  {selectedCount} Selected
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {currentNodeLessons.length > 5 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const excess = new Set(
+                                      currentNodeLessons.slice(5).map((l) => l.id)
+                                    );
+                                    setSelectedLessonIds(excess);
+                                  }}
+                                  className="text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-1 rounded-lg transition-colors"
+                                  title="Select lessons 6 and onwards that exceed the 5-lesson limit"
+                                >
+                                  Select Excess ({currentNodeLessons.length - 5})
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (selectedCount === currentNodeLessons.length) {
+                                    setSelectedLessonIds(new Set());
+                                  } else {
+                                    setSelectedLessonIds(
+                                      new Set(currentNodeLessons.map((l) => l.id))
+                                    );
+                                  }
+                                }}
+                                className="text-[11px] font-semibold text-gray-700 hover:text-indigo-600 transition-colors"
+                              >
+                                {selectedCount === currentNodeLessons.length
+                                  ? 'Deselect All'
+                                  : 'Select All'}
+                              </button>
+                              {selectedCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const chosenIds = currentNodeLessons
+                                      .filter((l) => selectedLessonIds.has(l.id))
+                                      .map((l) => l.id);
+                                    openMoveModal(
+                                      'batch_lessons',
+                                      chosenIds,
+                                      selection.item.id,
+                                      `${chosenIds.length} Selected Lessons`
+                                    );
+                                  }}
+                                  className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold rounded-lg shadow-xs flex items-center gap-1 transition-colors"
+                                >
+                                  <ArrowRightLeft size={12} />
+                                  Move Selected ({selectedCount})
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                            {currentNodeLessons.map((l, idx) => {
+                              const isExcess = idx >= 5;
+                              const isChecked = selectedLessonIds.has(l.id);
+                              return (
+                                <div
+                                  key={l.id}
+                                  className={`flex items-center justify-between p-2 rounded-lg border text-xs transition-colors ${
+                                    isExcess
+                                      ? isChecked
+                                        ? 'bg-rose-50 border-rose-300 text-rose-900 font-medium'
+                                        : 'bg-rose-50/40 border-rose-200 text-rose-800'
+                                      : isChecked
+                                      ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-medium'
+                                      : 'bg-white border-gray-200 text-gray-700'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 truncate">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {
+                                        const next = new Set(selectedLessonIds);
+                                        next.has(l.id) ? next.delete(l.id) : next.add(l.id);
+                                        setSelectedLessonIds(next);
+                                      }}
+                                      className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                    />
+                                    <span className="font-mono text-[10px] text-gray-400">
+                                      #{idx + 1}
+                                    </span>
+                                    <span className="truncate">{l.title}</span>
+                                    {isExcess && (
+                                      <span className="text-[9px] font-extrabold bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded">
+                                        EXCESS
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openMoveModal('lesson', l.id, selection.item.id, l.title)
+                                      }
+                                      className="text-gray-400 hover:text-indigo-600 p-1 rounded"
+                                      title="Move this lesson"
+                                    >
+                                      <ArrowRightLeft size={12} />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 
@@ -3331,6 +4075,170 @@ export default function CurriculumBuilderPage() {
                   {activeModal === 'question' && editingQuestionId ? 'Update' : 'Create'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MOVE MODAL (Lesson / Node / Batch Lessons) --- */}
+      {moveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-gray-100 animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-gray-100 bg-gray-50/80 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                  {moveModal.type === 'node' ? <Move size={18} /> : <ArrowRightLeft size={18} />}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-gray-900 text-sm truncate">
+                    {moveModal.type === 'node'
+                      ? 'Move Node to Another Unit'
+                      : moveModal.itemIds.length > 1
+                      ? `Move ${moveModal.itemIds.length} Selected Lessons`
+                      : 'Move Lesson to Another Node'}
+                  </h3>
+                  <p className="text-xs text-gray-500 truncate max-w-xs">{moveModal.title}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setMoveModal(null)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Destination Unit */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                  Select Destination Unit
+                </label>
+                <select
+                  value={moveModal.targetUnitId}
+                  onChange={(e) => {
+                    const uId = e.target.value;
+                    const uNodes = nodes.filter((n) => n.unit_id === uId);
+                    setMoveModal({
+                      ...moveModal,
+                      targetUnitId: uId,
+                      targetNodeId: uNodes[0]?.id || '',
+                    });
+                  }}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  {units.map((u) => {
+                    const uNodes = nodes.filter((n) => n.unit_id === u.id);
+                    return (
+                      <option key={u.id} value={u.id}>
+                        {u.display_id} - {u.title} ({uNodes.length}/8 nodes
+                        {uNodes.length >= 8 ? ' ⚠️ Full' : ''})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Destination Node (if moving lesson) */}
+              {moveModal.type !== 'node' && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                    Select Destination Node
+                  </label>
+                  {nodes.filter((n) => n.unit_id === moveModal.targetUnitId).length === 0 ? (
+                    <p className="text-xs text-gray-400 italic">
+                      No nodes in this unit. Please select another unit.
+                    </p>
+                  ) : (
+                    <select
+                      value={moveModal.targetNodeId}
+                      onChange={(e) =>
+                        setMoveModal({ ...moveModal, targetNodeId: e.target.value })
+                      }
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                    >
+                      {nodes
+                        .filter((n) => n.unit_id === moveModal.targetUnitId)
+                        .map((n) => {
+                          const nLessons = lessons.filter((l) => l.node_id === n.id);
+                          return (
+                            <option key={n.id} value={n.id}>
+                              {n.display_id} - {n.title} ({nLessons.length}/5 lessons
+                              {nLessons.length >= 5 ? ' ⚠️ Full' : ''})
+                            </option>
+                          );
+                        })}
+                    </select>
+                  )}
+                </div>
+              )}
+
+              {/* Capacity Warning Alert */}
+              {(() => {
+                if (moveModal.type === 'node') {
+                  const targetUnitNodes = nodes.filter(
+                    (n) => n.unit_id === moveModal.targetUnitId
+                  );
+                  if (targetUnitNodes.length >= 8) {
+                    return (
+                      <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
+                        <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                        <span>
+                          Destination Unit already has {targetUnitNodes.length} nodes (8-node limit reached).
+                          Moving this node will make it {targetUnitNodes.length + 1}/8.
+                        </span>
+                      </div>
+                    );
+                  }
+                } else {
+                  const targetNodeLessons = lessons.filter(
+                    (l) => l.node_id === moveModal.targetNodeId
+                  );
+                  const totalAfterMove = targetNodeLessons.length + moveModal.itemIds.length;
+                  if (totalAfterMove > 5) {
+                    return (
+                      <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-xs text-rose-800 flex items-start gap-2">
+                        <AlertTriangle size={15} className="text-rose-600 shrink-0 mt-0.5" />
+                        <span>
+                          Destination Node currently has {targetNodeLessons.length} lessons.
+                          Moving will result in {totalAfterMove}/5 lessons (exceeds 5-lesson limit).
+                        </span>
+                      </div>
+                    );
+                  }
+                }
+                return null;
+              })()}
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2.5">
+              <button
+                onClick={() => setMoveModal(null)}
+                className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-semibold text-gray-700 hover:bg-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={
+                  actionLoading ||
+                  (moveModal.type !== 'node' && !moveModal.targetNodeId)
+                }
+                onClick={() => {
+                  if (moveModal.type === 'node') {
+                    handleMoveNode(moveModal.itemIds[0], moveModal.targetUnitId);
+                  } else {
+                    handleMoveLesson(moveModal.itemIds, moveModal.targetNodeId);
+                  }
+                }}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {actionLoading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Check size={14} />
+                )}
+                Confirm Move
+              </button>
             </div>
           </div>
         </div>
