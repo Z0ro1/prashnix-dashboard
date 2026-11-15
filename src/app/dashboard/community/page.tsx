@@ -42,13 +42,13 @@ import { supabase } from '@/lib/supabase';
 type TabType = 'images' | 'notices' | 'announcements' | 'tips' | 'chat';
 
 const BADGE_SUGGESTIONS = [
-  'नवीन',
-  'अति महत्त्वाचे',
-  'परीक्षेची तारीख',
-  'मैदानी चाचणी',
-  'चालू घडामोडी',
-  'साप्ताहिक टेस्ट',
-  'निकाल जाहीर',
+  'New',
+  'Important',
+  'Exam Date',
+  'Physical Test',
+  'Current Affairs',
+  'Weekly Test',
+  'Results Announced',
 ];
 
 export default function CommunityPage() {
@@ -69,7 +69,7 @@ export default function CommunityPage() {
   const [itemTitle, setItemTitle] = useState('');
   const [itemContent, setItemContent] = useState('');
   const [itemImageUrl, setItemImageUrl] = useState('');
-  const [itemBadgeTag, setItemBadgeTag] = useState('नवीन');
+  const [itemBadgeTag, setItemBadgeTag] = useState('New');
   const [itemActionUrl, setItemActionUrl] = useState('');
   const [itemIsPinned, setItemIsPinned] = useState(false);
   const [itemIsActive, setItemIsActive] = useState(true);
@@ -105,7 +105,7 @@ export default function CommunityPage() {
       await Promise.all([loadItems(), loadMessages()]);
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      toast('error', 'डेटा लोड करण्यास त्रुटी', errMsg);
+      toast('error', 'Failed to load community data', errMsg);
     } finally {
       setLoading(false);
     }
@@ -140,7 +140,7 @@ export default function CommunityPage() {
   const handleCopySql = () => {
     navigator.clipboard.writeText(COMMUNITY_SQL_MIGRATION);
     setCopiedSql(true);
-    toast('success', 'SQL कॉपी झाले!', 'Supabase SQL Editor मध्ये पेस्ट करून Run करा.');
+    toast('success', 'SQL Copied!', 'Paste and run in your Supabase SQL Editor.');
     setTimeout(() => setCopiedSql(false), 3000);
   };
 
@@ -158,7 +158,7 @@ export default function CommunityPage() {
     setItemTitle('');
     setItemContent('');
     setItemImageUrl('');
-    setItemBadgeTag('नवीन');
+    setItemBadgeTag('New');
     setItemActionUrl('');
     setItemIsPinned(false);
     setItemIsActive(true);
@@ -172,7 +172,7 @@ export default function CommunityPage() {
     setItemTitle(item.title);
     setItemContent(item.content || '');
     setItemImageUrl(item.image_url || '');
-    setItemBadgeTag(item.badge_tag || 'नवीन');
+    setItemBadgeTag(item.badge_tag || 'New');
     setItemActionUrl(item.action_url || '');
     setItemIsPinned(item.is_pinned);
     setItemIsActive(item.is_active);
@@ -183,11 +183,11 @@ export default function CommunityPage() {
   const handleSaveItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!itemTitle.trim()) {
-      toast('error', 'शीर्षक आवश्यक आहे', 'कृपया शीर्षकाची नोंद करा.');
+      toast('error', 'Title is required', 'Please provide a title for this item.');
       return;
     }
     if (itemType === 'image' && !itemImageUrl.trim()) {
-      toast('error', 'इमेज URL आवश्यक आहे', 'कृपया प्रतिमेची URL प्रविष्ट करा.');
+      toast('error', 'Image URL is required', 'Please provide a valid image URL.');
       return;
     }
 
@@ -199,18 +199,18 @@ export default function CommunityPage() {
         title: itemTitle.trim(),
         content: itemContent.trim(),
         image_url: itemImageUrl.trim() || undefined,
-        badge_tag: itemBadgeTag.trim() || 'नवीन',
+        badge_tag: itemBadgeTag.trim() || 'New',
         action_url: itemActionUrl.trim() || undefined,
         is_pinned: itemIsPinned,
         is_active: itemIsActive,
       });
 
-      toast('success', editingItem ? 'बदल जतन झाले!' : 'नवीन पोस्ट तयार झाली!', itemTitle);
+      toast('success', editingItem ? 'Post updated successfully!' : 'New post created!', itemTitle);
       setShowItemModal(false);
       await loadItems();
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      toast('error', 'जतन करण्यास त्रुटी', errMsg);
+      toast('error', 'Failed to save post', errMsg);
     } finally {
       setSavingItem(false);
     }
@@ -219,18 +219,18 @@ export default function CommunityPage() {
   // Delete Item
   const handleDeleteItem = (item: CommunityItem) => {
     confirm({
-      title: 'काढून टाकावे का?',
-      message: `"${item.title}" कायमचे काढून टाकायचे आहे का?`,
-      confirmText: 'होय, काढून टाका',
+      title: 'Delete Post?',
+      message: `Are you sure you want to permanently delete "${item.title}"?`,
+      confirmText: 'Yes, Delete',
       isDestructive: true,
       onConfirm: async () => {
         try {
           await deleteCommunityItem(item.id);
-          toast('success', 'यशस्वीरित्या काढून टाकले', item.title);
+          toast('success', 'Post deleted successfully', item.title);
           await loadItems();
         } catch (err: unknown) {
           const errMsg = err instanceof Error ? err.message : String(err);
-          toast('error', 'काढून टाकण्यास त्रुटी', errMsg);
+          toast('error', 'Failed to delete post', errMsg);
         }
       },
     });
@@ -240,11 +240,11 @@ export default function CommunityPage() {
   const handleToggleActive = async (item: CommunityItem) => {
     try {
       await toggleCommunityItemActive(item.id, !item.is_active);
-      toast('info', item.is_active ? 'निष्क्रिय केले' : 'सक्रिय केले', item.title);
+      toast('info', item.is_active ? 'Post deactivated' : 'Post activated', item.title);
       await loadItems();
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      toast('error', 'स्थिती बदलण्यात त्रुटी', errMsg);
+      toast('error', 'Failed to update status', errMsg);
     }
   };
 
@@ -255,13 +255,13 @@ export default function CommunityPage() {
 
     setSendingMsg(true);
     try {
-      await sendCommunityMessage(chatInput, 'प्रशांतिक्स ॲडमिन 🛡️', 'champion');
+      await sendCommunityMessage(chatInput, 'Prashnix Admin 🛡️', 'champion');
       setChatInput('');
-      toast('success', 'संदेश पाठवला', 'लाइव्ह चॅटमध्ये ३० मिनिटे दिसेल.');
+      toast('success', 'Message sent', 'Visible in the live 30-minute chat feed.');
       await loadMessages();
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      toast('error', 'संदेश पाठवता आला नाही', errMsg);
+      toast('error', 'Failed to send message', errMsg);
     } finally {
       setSendingMsg(false);
     }
@@ -270,18 +270,18 @@ export default function CommunityPage() {
   // Delete Chat Message
   const handleDeleteMessage = (msg: CommunityMessage) => {
     confirm({
-      title: 'संदेश हटवावा का?',
-      message: `"${msg.username}" चा संदेश चॅटमधून काढून टाकायचा आहे का?`,
-      confirmText: 'होय, हटवा',
+      title: 'Delete Message?',
+      message: `Delete message from "${msg.username}"?`,
+      confirmText: 'Yes, Delete',
       isDestructive: true,
       onConfirm: async () => {
         try {
           await deleteCommunityMessage(msg.id);
-          toast('success', 'संदेश हटवला', 'हा संदेश आता विद्यार्थ्यांना दिसणार नाही.');
+          toast('success', 'Message removed', 'The message has been removed from all student feeds.');
           await loadMessages();
         } catch (err: unknown) {
           const errMsg = err instanceof Error ? err.message : String(err);
-          toast('error', 'संदेश हटवण्यात त्रुटी', errMsg);
+          toast('error', 'Failed to remove message', errMsg);
         }
       },
     });
@@ -296,9 +296,9 @@ export default function CommunityPage() {
   const getRemainingMinutes = (createdAt: string) => {
     const created = new Date(createdAt).getTime();
     const diffMs = 30 * 60 * 1000 - (Date.now() - created);
-    if (diffMs <= 0) return 'कालबाह्य';
+    if (diffMs <= 0) return 'Expired';
     const mins = Math.ceil(diffMs / (60 * 1000));
-    return `${mins} मि शिल्लक`;
+    return `${mins}m left`;
   };
 
   // Filtered items
@@ -323,16 +323,16 @@ export default function CommunityPage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
         <div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-pink-100 text-pink-700 rounded-xl">
-              <MessageSquare size={26} />
+            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100">
+              <MessageSquare size={24} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">समुदाय केंद्र (Community Hub)</h1>
-              <p className="text-gray-500 text-sm">
-                थेट ३० मिनिटे लाइव्ह चॅट, अभ्यास चित्रे, अधिकृत सूचना आणि घोषणा व्यवस्थापन.
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Community Hub</h1>
+              <p className="text-slate-500 text-sm mt-0.5">
+                Manage 30-minute live chat moderation, study posters, official notices, and announcements.
               </p>
             </div>
           </div>
@@ -344,112 +344,112 @@ export default function CommunityPage() {
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
               copiedSql
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
             }`}
           >
             {copiedSql ? <Check size={16} /> : <Copy size={16} />}
-            {copiedSql ? 'SQL कॉपी झाले' : 'Copy Supabase SQL'}
+            {copiedSql ? 'SQL Copied!' : 'Copy Supabase SQL'}
           </button>
 
           <button
             onClick={loadAllData}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition-all"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 transition-all"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            रिफ्रेश
+            Refresh
           </button>
 
           {activeTab !== 'chat' && (
             <button
               onClick={() => handleOpenCreateModal()}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-pink-600 text-white hover:bg-pink-700 shadow-sm transition-all"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition-all"
             >
               <Plus size={18} />
-              नवीन जोडा
+              Create Post
             </button>
           )}
         </div>
       </div>
 
       {/* Storage Mode Notice */}
-      <div className="bg-gray-50 border border-gray-200/80 rounded-xl p-3 px-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-gray-600">
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 px-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-slate-600">
         <div className="flex items-center gap-2">
           <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
           <span>
             Storage Mode:{' '}
-            <strong className="text-gray-900">
+            <strong className="text-slate-900">
               {tablesExist.itemsTable ? 'Supabase Table (community_items & messages)' : 'Local Resilient Fallback Active'}
             </strong>
           </span>
-          <span className="text-gray-400">• ३०-मिनिटे ऑटो-एक्सपायरी चॅट सक्रिय</span>
+          <span className="text-slate-400">• 30-Minute Auto-Expiry Live Chat Active</span>
         </div>
         {!tablesExist.itemsTable && (
           <span className="text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold">
-            टीप: Supabase मध्ये टेबल तयार करण्यासाठी वरील &apos;Copy Supabase SQL&apos; बटण दाबा.
+            Tip: Run &apos;Copy Supabase SQL&apos; in Supabase SQL editor to create persistent cloud tables.
           </span>
         )}
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex border-b border-gray-200 gap-2 overflow-x-auto">
+      {/* Modern Navigation Tabs */}
+      <div className="flex border-b border-slate-200 gap-1 overflow-x-auto">
         <button
           onClick={() => setActiveTab('images')}
           className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'images'
-              ? 'border-pink-600 text-pink-600'
-              : 'border-transparent text-gray-500 hover:text-gray-800'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <ImageIcon size={18} />
-          चित्रे व पोस्टर्स ({items.filter((i) => i.type === 'image').length})
+          Study Charts ({items.filter((i) => i.type === 'image').length})
         </button>
 
         <button
           onClick={() => setActiveTab('notices')}
           className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'notices'
-              ? 'border-pink-600 text-pink-600'
-              : 'border-transparent text-gray-500 hover:text-gray-800'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <Bell size={18} />
-          सूचना ({items.filter((i) => i.type === 'notice').length})
+          Notices ({items.filter((i) => i.type === 'notice').length})
         </button>
 
         <button
           onClick={() => setActiveTab('announcements')}
           className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'announcements'
-              ? 'border-pink-600 text-pink-600'
-              : 'border-transparent text-gray-500 hover:text-gray-800'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <Megaphone size={18} />
-          घोषणा ({items.filter((i) => i.type === 'announcement').length})
+          Announcements ({items.filter((i) => i.type === 'announcement').length})
         </button>
 
         <button
           onClick={() => setActiveTab('tips')}
           className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'tips'
-              ? 'border-pink-600 text-pink-600'
-              : 'border-transparent text-gray-500 hover:text-gray-800'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <Lightbulb size={18} />
-          चालू घडामोडी / टिप्स ({items.filter((i) => i.type === 'study_tip').length})
+          Study Tips ({items.filter((i) => i.type === 'study_tip').length})
         </button>
 
         <button
           onClick={() => setActiveTab('chat')}
           className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'chat'
-              ? 'border-pink-600 text-pink-600'
-              : 'border-transparent text-gray-500 hover:text-gray-800'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <MessageSquare size={18} />
-          थेट चॅट नियंत्रण ({messages.length})
+          Live Chat Monitor ({messages.length})
         </button>
       </div>
 
@@ -457,56 +457,56 @@ export default function CommunityPage() {
       {activeTab === 'chat' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Chat Stream */}
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200/80 shadow-sm flex flex-col h-[650px]">
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 rounded-t-2xl">
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-sm flex flex-col h-[650px]">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 rounded-t-2xl">
               <div className="flex items-center gap-2">
-                <Clock size={18} className="text-pink-600" />
-                <span className="font-bold text-gray-800 text-sm">३०-मिनिटे थेट चॅट संदेश प्रवाह</span>
-                <span className="bg-pink-100 text-pink-700 text-xs px-2 py-0.5 rounded-full font-semibold">
-                  {messages.length} सक्रिय संदेश
+                <Clock size={18} className="text-indigo-600" />
+                <span className="font-bold text-slate-800 text-sm">Live 30-Minute Chat Stream</span>
+                <span className="bg-indigo-50 text-indigo-700 border border-indigo-200/60 text-xs px-2.5 py-0.5 rounded-full font-semibold">
+                  {messages.length} active
                 </span>
               </div>
-              <span className="text-xs text-gray-400">फक्त मजकूर आणि इमोजी अनुमत</span>
+              <span className="text-xs text-slate-400">Auto-expires after 30 minutes</span>
             </div>
 
             <div className="flex-1 p-4 overflow-y-auto space-y-3">
               {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400 text-sm">
-                  <MessageSquare size={48} className="mb-2 text-gray-300 stroke-[1.5]" />
-                  <p>सध्या कोणतेही सक्रिय संदेश नाहीत.</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    संदेश ३० मिनिटांनंतर आपोआप नाहीसे होतात.
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm">
+                  <MessageSquare size={48} className="mb-2 text-slate-300 stroke-[1.5]" />
+                  <p className="font-medium text-slate-600">No active messages right now.</p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Messages automatically clear 30 minutes after they are sent.
                   </p>
                 </div>
               ) : (
                 messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className="group flex items-start justify-between gap-3 p-3.5 rounded-xl border border-gray-100 hover:border-pink-200 hover:bg-pink-50/20 transition-all"
+                    className="group flex items-start justify-between gap-3 p-3.5 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/20 transition-all"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-pink-500 to-indigo-600 text-white font-bold flex items-center justify-center text-sm shadow-sm flex-shrink-0">
-                        {msg.username.charAt(0)}
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-600 to-blue-500 text-white font-bold flex items-center justify-center text-sm shadow-sm flex-shrink-0">
+                        {msg.username.charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-sm text-gray-900">{msg.username}</span>
-                          <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
-                            {msg.league_tier || 'स्पर्धक'}
+                          <span className="font-bold text-sm text-slate-900">{msg.username}</span>
+                          <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                            {msg.league_tier || 'Aspirant'}
                           </span>
-                          <span className="text-[11px] text-gray-400 flex items-center gap-1">
+                          <span className="text-[11px] text-slate-400 flex items-center gap-1 font-medium">
                             <Clock size={11} />
                             {getRemainingMinutes(msg.created_at)}
                           </span>
                         </div>
-                        <p className="text-gray-800 text-sm mt-1 break-words">{msg.message}</p>
+                        <p className="text-slate-800 text-sm mt-1 break-words">{msg.message}</p>
                       </div>
                     </div>
 
                     <button
                       onClick={() => handleDeleteMessage(msg)}
-                      title="संदेश हटवा"
-                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-all flex-shrink-0"
+                      title="Delete Message"
+                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-all flex-shrink-0"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -516,15 +516,15 @@ export default function CommunityPage() {
             </div>
 
             {/* Quick Emoji Toolbar & Chat Input */}
-            <div className="p-3 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
+            <div className="p-3 border-t border-slate-100 bg-slate-50/60 rounded-b-2xl">
               <div className="flex items-center gap-1.5 mb-2 overflow-x-auto pb-1 text-lg">
-                <span className="text-xs text-gray-400 mr-1 font-medium">जलद इमोजी:</span>
+                <span className="text-xs text-slate-400 mr-1 font-medium">Quick Emojis:</span>
                 {['👍', '🔥', '🎯', '👮‍♂️', '🇮🇳', '📚', '💪', '💯', '👏', '🙌'].map((emoji) => (
                   <button
                     key={emoji}
                     type="button"
                     onClick={() => addEmoji(emoji)}
-                    className="p-1 hover:bg-white rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                    className="p-1 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all"
                   >
                     {emoji}
                   </button>
@@ -536,17 +536,17 @@ export default function CommunityPage() {
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="ॲडमिन संदेश किंवा घोषणा टाइप करा (फक्त मजकूर आणि इमोजी)..."
+                  placeholder="Type an admin broadcast or response (text & emojis only)..."
                   maxLength={300}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 text-sm bg-white"
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm bg-white"
                 />
                 <button
                   type="submit"
                   disabled={sendingMsg || !chatInput.trim()}
-                  className="px-4 py-2.5 bg-pink-600 hover:bg-pink-700 disabled:opacity-50 text-white rounded-xl font-semibold text-sm flex items-center gap-2 shadow-sm transition-all"
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-semibold text-sm flex items-center gap-2 shadow-sm transition-all"
                 >
                   <Send size={16} />
-                  पाठवा
+                  Send
                 </button>
               </form>
             </div>
@@ -554,31 +554,31 @@ export default function CommunityPage() {
 
           {/* Chat Rules / Moderation Guide */}
           <div className="space-y-4">
-            <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-sm">
-              <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2 mb-3">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2 mb-3">
                 <ShieldAlert size={18} className="text-amber-500" />
-                चॅट नियम व सुरक्षा (Rules)
+                Moderation Rules & Guidelines
               </h3>
-              <ul className="text-xs text-gray-600 space-y-2.5">
+              <ul className="text-xs text-slate-600 space-y-2.5">
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 flex-shrink-0" />
-                  <span><strong>३० मिनिटांचा नियम:</strong> प्रत्येक संदेश पाठवल्यापासून बरोबर ३० मिनिटांनी आपोआप नष्ट होतो.</span>
+                  <span><strong>30-Minute Auto-Expiry:</strong> All messages automatically clear after 30 minutes.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 flex-shrink-0" />
-                  <span><strong>फक्त मजकूर व इमोजी:</strong> लिंक्स, फाइल्स किंवा प्रतिमा चॅटमध्ये पाठवता येत नाहीत.</span>
+                  <span><strong>Text & Emojis Only:</strong> Media links, file uploads, and scripts are strictly rejected.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 flex-shrink-0" />
-                  <span><strong>ॲडमिन नियंत्रण:</strong> अनुचित संदेश एका क्लिकमध्ये तात्काळ हटवता येतो.</span>
+                  <span><strong>Admin Purge Control:</strong> Inappropriate or spam messages can be deleted instantly.</span>
                 </li>
               </ul>
             </div>
 
-            <div className="bg-gradient-to-br from-pink-50 to-indigo-50 p-5 rounded-2xl border border-pink-100 text-xs text-gray-700">
-              <h4 className="font-bold text-pink-900 text-sm mb-2">💡 ॲडमिन टीप</h4>
+            <div className="bg-gradient-to-br from-indigo-50 to-slate-50 p-5 rounded-2xl border border-indigo-100 text-xs text-slate-700">
+              <h4 className="font-bold text-indigo-900 text-sm mb-2">💡 Admin Tip</h4>
               <p className="leading-relaxed">
-                विद्यार्थ्यांच्या अडचणी, अभ्यासाचे नियोजन आणि आजची तयारी यावर थेट मार्गदर्शन देण्यासाठी या लाइव्ह चॅटचा उपयोग करा.
+                Use this channel to address candidate questions, provide quick study motivations, and share daily drill reminders in real time.
               </p>
             </div>
           </div>
@@ -591,17 +591,17 @@ export default function CommunityPage() {
           {/* Search bar & count */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="relative w-full sm:w-80">
-              <Search size={16} className="absolute left-3.5 top-3 text-gray-400" />
+              <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
               <input
                 type="text"
-                placeholder="शोधा (शीर्षक किंवा टॅग)..."
+                placeholder="Search by title or badge tag..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500"
+                className="w-full pl-9 pr-4 py-2 bg-white rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
-            <div className="text-xs text-gray-500 font-medium self-end sm:self-auto">
-              एकूण सापडलेले: {filteredItems.length}
+            <div className="text-xs text-slate-500 font-medium self-end sm:self-auto">
+              Total items: {filteredItems.length}
             </div>
           </div>
 
@@ -612,10 +612,10 @@ export default function CommunityPage() {
                 <div
                   key={item.id}
                   className={`bg-white rounded-2xl border overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col ${
-                    item.is_active ? 'border-gray-200/80' : 'border-gray-200 opacity-60'
+                    item.is_active ? 'border-slate-200' : 'border-slate-200 opacity-60'
                   }`}
                 >
-                  <div className="relative h-48 bg-gray-100 overflow-hidden">
+                  <div className="relative h-48 bg-slate-100 overflow-hidden">
                     {item.image_url ? (
                       <img
                         src={item.image_url}
@@ -623,17 +623,17 @@ export default function CommunityPage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <div className="w-full h-full flex items-center justify-center text-slate-400">
                         <ImageIcon size={40} />
                       </div>
                     )}
                     <div className="absolute top-3 left-3 flex gap-1.5 flex-wrap">
-                      <span className="bg-pink-600 text-white font-bold text-[11px] px-2.5 py-1 rounded-lg shadow-sm">
-                        {item.badge_tag || 'इन्फोग्राफिक'}
+                      <span className="bg-indigo-600 text-white font-bold text-[11px] px-2.5 py-1 rounded-lg shadow-sm">
+                        {item.badge_tag || 'Chart'}
                       </span>
                       {item.is_pinned && (
-                        <span className="bg-indigo-600 text-white font-bold text-[11px] px-2 py-1 rounded-lg shadow-sm flex items-center gap-1">
-                          <Pin size={11} /> पिन केलेले
+                        <span className="bg-violet-600 text-white font-bold text-[11px] px-2 py-1 rounded-lg shadow-sm flex items-center gap-1">
+                          <Pin size={11} /> Pinned
                         </span>
                       )}
                     </div>
@@ -641,37 +641,37 @@ export default function CommunityPage() {
 
                   <div className="p-4 flex-1 flex flex-col justify-between">
                     <div>
-                      <h3 className="font-bold text-gray-900 text-base line-clamp-2">{item.title}</h3>
+                      <h3 className="font-bold text-slate-900 text-base line-clamp-2">{item.title}</h3>
                       {item.content && (
-                        <p className="text-gray-500 text-xs mt-1.5 line-clamp-3 leading-relaxed">
+                        <p className="text-slate-500 text-xs mt-1.5 line-clamp-3 leading-relaxed">
                           {item.content}
                         </p>
                       )}
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                       <button
                         onClick={() => handleToggleActive(item)}
                         className={`text-xs font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all ${
                           item.is_active
                             ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
                         <Power size={13} />
-                        {item.is_active ? 'सक्रिय' : 'निष्क्रिय'}
+                        {item.is_active ? 'Active' : 'Inactive'}
                       </button>
 
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => handleOpenEditModal(item)}
-                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                         >
                           <Edit size={16} />
                         </button>
                         <button
                           onClick={() => handleDeleteItem(item)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -689,29 +689,29 @@ export default function CommunityPage() {
               {filteredItems.map((item) => (
                 <div
                   key={item.id}
-                  className={`bg-white p-5 rounded-2xl border hover:border-pink-200 transition-all shadow-sm flex flex-col sm:flex-row items-start justify-between gap-4 ${
-                    item.is_active ? 'border-gray-200/80' : 'border-gray-200 opacity-60'
+                  className={`bg-white p-5 rounded-2xl border hover:border-indigo-200 transition-all shadow-sm flex flex-col sm:flex-row items-start justify-between gap-4 ${
+                    item.is_active ? 'border-slate-200' : 'border-slate-200 opacity-60'
                   }`}
                 >
                   <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="bg-pink-100 text-pink-700 font-bold text-xs px-2.5 py-0.5 rounded-md">
-                        {item.badge_tag || 'सूचना'}
+                      <span className="bg-indigo-50 text-indigo-700 border border-indigo-200/60 font-bold text-xs px-2.5 py-0.5 rounded-md">
+                        {item.badge_tag || 'Notice'}
                       </span>
                       {item.is_pinned && (
-                        <span className="bg-indigo-100 text-indigo-700 font-bold text-xs px-2 py-0.5 rounded-md flex items-center gap-1">
-                          <Pin size={11} /> पिन केलेले
+                        <span className="bg-violet-50 text-violet-700 border border-violet-200 font-bold text-xs px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <Pin size={11} /> Pinned
                         </span>
                       )}
-                      <span className="text-[11px] text-gray-400">
-                        {item.created_at ? new Date(item.created_at).toLocaleDateString('mr-IN') : ''}
+                      <span className="text-[11px] text-slate-400 font-medium">
+                        {item.created_at ? new Date(item.created_at).toLocaleDateString('en-US') : ''}
                       </span>
                     </div>
 
-                    <h3 className="font-bold text-gray-900 text-base">{item.title}</h3>
+                    <h3 className="font-bold text-slate-900 text-base">{item.title}</h3>
 
                     {item.content && (
-                      <p className="text-gray-600 text-sm leading-relaxed">{item.content}</p>
+                      <p className="text-slate-600 text-sm leading-relaxed">{item.content}</p>
                     )}
 
                     {item.action_url && (
@@ -721,34 +721,34 @@ export default function CommunityPage() {
                         rel="noreferrer"
                         className="inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 font-semibold mt-1"
                       >
-                        अधिक माहिती / लिंक पहा <ExternalLink size={12} />
+                        Learn more / external link <ExternalLink size={12} />
                       </a>
                     )}
                   </div>
 
-                  <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-3 pt-3 sm:pt-0 border-t sm:border-t-0 border-gray-100">
+                  <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-3 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                     <button
                       onClick={() => handleToggleActive(item)}
                       className={`text-xs font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all ${
                         item.is_active
                           ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
                       <Power size={13} />
-                      {item.is_active ? 'सक्रिय' : 'बंद'}
+                      {item.is_active ? 'Active' : 'Inactive'}
                     </button>
 
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => handleOpenEditModal(item)}
-                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                       >
                         <Edit size={16} />
                       </button>
                       <button
                         onClick={() => handleDeleteItem(item)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -760,13 +760,13 @@ export default function CommunityPage() {
           )}
 
           {filteredItems.length === 0 && !loading && (
-            <div className="text-center py-16 bg-white rounded-2xl border border-gray-200/80">
-              <p className="text-gray-400 text-sm">येथे कोणतीही माहिती उपलब्ध नाही.</p>
+            <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
+              <p className="text-slate-400 text-sm">No items found in this section.</p>
               <button
                 onClick={() => handleOpenCreateModal()}
-                className="mt-3 px-4 py-2 bg-pink-600 text-white rounded-xl text-xs font-semibold hover:bg-pink-700"
+                className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700 transition-all shadow-sm"
               >
-                + पहिली पोस्ट तयार करा
+                + Create First Post
               </button>
             </div>
           )}
@@ -776,14 +776,14 @@ export default function CommunityPage() {
       {/* CREATE / EDIT MODAL */}
       {showItemModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-gray-100 flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-              <h2 className="font-bold text-gray-900 text-lg">
-                {editingItem ? 'पोस्ट संपादित करा' : 'नवीन समुदाय पोस्ट तयार करा'}
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+              <h2 className="font-bold text-slate-900 text-lg">
+                {editingItem ? 'Edit Community Post' : 'Create Community Post'}
               </h2>
               <button
                 onClick={() => setShowItemModal(false)}
-                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"
               >
                 <X size={20} />
               </button>
@@ -791,44 +791,44 @@ export default function CommunityPage() {
 
             <form onSubmit={handleSaveItem} className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">प्रकार (Type)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Post Type</label>
                 <select
                   value={itemType}
                   onChange={(e) => setItemType(e.target.value as any)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 bg-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white"
                 >
-                  <option value="image">अभ्यास चित्र / पोस्टर (Image)</option>
-                  <option value="notice">सूचना (Notice)</option>
-                  <option value="announcement">घोषणा (Announcement)</option>
-                  <option value="study_tip">चालू घडामोडी / अभ्यास सूत्रे (Study Tip)</option>
+                  <option value="image">Study Chart / Poster (Image)</option>
+                  <option value="notice">Official Notice</option>
+                  <option value="announcement">Announcement</option>
+                  <option value="study_tip">Study Tip / Quick Formula</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">शीर्षक (Title) *</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Title *</label>
                 <input
                   type="text"
                   required
-                  placeholder="उदा. महाराष्ट्र पोलीस भरती अभ्यासक्रम तक्ता"
+                  placeholder="e.g., Maharashtra Police Bharti Syllabus Map"
                   value={itemTitle}
                   onChange={(e) => setItemTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
 
               {itemType === 'image' && (
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">प्रतिमा URL (Image URL) *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Image URL *</label>
                   <input
                     type="url"
                     required
                     placeholder="https://example.com/poster.jpg"
                     value={itemImageUrl}
                     onChange={(e) => setItemImageUrl(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                   {itemImageUrl && (
-                    <div className="mt-2 h-36 rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
+                    <div className="mt-2 h-36 rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
                       <img src={itemImageUrl} alt="Preview" className="w-full h-full object-cover" />
                     </div>
                   )}
@@ -836,24 +836,24 @@ export default function CommunityPage() {
               )}
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">तपशील / वर्णन (Content)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Content / Description</label>
                 <textarea
                   rows={3}
-                  placeholder="तपशीलवार माहिती..."
+                  placeholder="Detailed description, instructions, or exam guidelines..."
                   value={itemContent}
                   onChange={(e) => setItemContent(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">बॅज टॅग (Badge Tag)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Badge Tag</label>
                 <input
                   type="text"
-                  placeholder="उदा. अति महत्त्वाचे"
+                  placeholder="e.g., Important"
                   value={itemBadgeTag}
                   onChange={(e) => setItemBadgeTag(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
                 <div className="flex gap-1.5 flex-wrap mt-2">
                   {BADGE_SUGGESTIONS.map((tag) => (
@@ -861,7 +861,7 @@ export default function CommunityPage() {
                       key={tag}
                       type="button"
                       onClick={() => setItemBadgeTag(tag)}
-                      className="text-[11px] px-2 py-0.5 rounded bg-gray-100 hover:bg-pink-100 hover:text-pink-700 text-gray-600 transition-all"
+                      className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 transition-all font-medium border border-transparent hover:border-indigo-200"
                     >
                       {tag}
                     </button>
@@ -870,52 +870,52 @@ export default function CommunityPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">कृती लिंक (Action / External URL)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Action / External URL (Optional)</label>
                 <input
                   type="url"
                   placeholder="https://..."
                   value={itemActionUrl}
                   onChange={(e) => setItemActionUrl(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
 
               <div className="flex items-center gap-6 pt-2">
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
                   <input
                     type="checkbox"
                     checked={itemIsPinned}
                     onChange={(e) => setItemIsPinned(e.target.checked)}
-                    className="w-4 h-4 text-pink-600 rounded border-gray-300 focus:ring-pink-500"
+                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
                   />
-                  वर पिन करा (Pin to top)
+                  Pin to Top
                 </label>
 
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
                   <input
                     type="checkbox"
                     checked={itemIsActive}
                     onChange={(e) => setItemIsActive(e.target.checked)}
-                    className="w-4 h-4 text-pink-600 rounded border-gray-300 focus:ring-pink-500"
+                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
                   />
-                  सक्रिय ठेवा (Active)
+                  Keep Active (Visible to students)
                 </label>
               </div>
 
-              <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowItemModal(false)}
-                  className="px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
+                  className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
                 >
-                  रद्द करा
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={savingItem}
-                  className="px-5 py-2.5 bg-pink-600 hover:bg-pink-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
                 >
-                  {savingItem ? 'जतन करत आहे...' : 'जतन करा'}
+                  {savingItem ? 'Saving...' : 'Save Post'}
                 </button>
               </div>
             </form>

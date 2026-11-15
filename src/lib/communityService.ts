@@ -370,24 +370,24 @@ export async function fetchRecentMessages(minutesWindow: number = 30): Promise<C
 export function validateMessageContent(text: string): { valid: boolean; reason?: string } {
   const trimmed = text.trim();
   if (!trimmed) {
-    return { valid: false, reason: 'संदेश रिकामे असू शकत नाही (Message cannot be empty).' };
+    return { valid: false, reason: 'Message cannot be empty.' };
   }
   if (trimmed.length > 300) {
-    return { valid: false, reason: 'संदेश ३०० अक्षरांपेक्षा मोठा असू शकत नाही (Message cannot exceed 300 characters).' };
+    return { valid: false, reason: 'Message cannot exceed 300 characters.' };
   }
   // Reject URLs/links
   if (/https?:\/\/|www\.|\.com|\.in|\.org|\.net/i.test(trimmed)) {
-    return { valid: false, reason: 'गप्पांमध्ये लिंक्स / URLs अनुमत नाहीत (Links are not allowed).' };
+    return { valid: false, reason: 'Links and URLs are not allowed in the live chat.' };
   }
   // Reject HTML tags
   if (/<[^>]*>/i.test(trimmed)) {
-    return { valid: false, reason: 'HTML किंवा कोड टॅग अनुमत नाहीत (Code tags not allowed).' };
+    return { valid: false, reason: 'HTML or code tags are not allowed.' };
   }
 
   return { valid: true };
 }
 
-export async function sendCommunityMessage(message: string, username: string = 'ॲडमिन', leagueTier: string = 'champion'): Promise<CommunityMessage> {
+export async function sendCommunityMessage(message: string, username: string = 'Prashnix Admin 🛡️', leagueTier: string = 'champion'): Promise<CommunityMessage> {
   const validation = validateMessageContent(message);
   if (!validation.valid) {
     throw new Error(validation.reason);
