@@ -13,8 +13,6 @@ import {
   ExternalLink,
   Pin,
   CheckCircle2,
-  Copy,
-  Check,
   RefreshCw,
   Power,
   X,
@@ -27,7 +25,6 @@ import { useFeedback } from '@/components/FeedbackDialog';
 import {
   CommunityItem,
   CommunityMessage,
-  COMMUNITY_SQL_MIGRATION,
   checkCommunityTablesExist,
   fetchCommunityItems,
   saveCommunityItem,
@@ -59,7 +56,6 @@ export default function CommunityPage() {
   const [messages, setMessages] = useState<CommunityMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [tablesExist, setTablesExist] = useState({ messagesTable: false, itemsTable: false });
-  const [copiedSql, setCopiedSql] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Item Modal State
@@ -136,13 +132,6 @@ export default function CommunityPage() {
       supabase.removeChannel(channel);
     };
   }, []);
-
-  const handleCopySql = () => {
-    navigator.clipboard.writeText(COMMUNITY_SQL_MIGRATION);
-    setCopiedSql(true);
-    toast('success', 'SQL Copied!', 'Paste and run in your Supabase SQL Editor.');
-    setTimeout(() => setCopiedSql(false), 3000);
-  };
 
   // Open Modal for Create
   const handleOpenCreateModal = (defaultType?: 'image' | 'notice' | 'announcement' | 'study_tip') => {
@@ -330,7 +319,13 @@ export default function CommunityPage() {
               <MessageSquare size={24} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Community Hub</h1>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Community Hub</h1>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Sync
+                </span>
+              </div>
               <p className="text-slate-500 text-sm mt-0.5">
                 Manage 30-minute live chat moderation, study posters, official notices, and announcements.
               </p>
@@ -340,20 +335,8 @@ export default function CommunityPage() {
 
         <div className="flex items-center gap-3 flex-wrap">
           <button
-            onClick={handleCopySql}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
-              copiedSql
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {copiedSql ? <Check size={16} /> : <Copy size={16} />}
-            {copiedSql ? 'SQL Copied!' : 'Copy Supabase SQL'}
-          </button>
-
-          <button
             onClick={loadAllData}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 transition-all"
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 transition-all shadow-sm"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             Refresh
@@ -362,32 +345,13 @@ export default function CommunityPage() {
           {activeTab !== 'chat' && (
             <button
               onClick={() => handleOpenCreateModal()}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition-all"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition-all"
             >
               <Plus size={18} />
               Create Post
             </button>
           )}
         </div>
-      </div>
-
-      {/* Storage Mode Notice */}
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 px-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-slate-600">
-        <div className="flex items-center gap-2">
-          <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span>
-            Storage Mode:{' '}
-            <strong className="text-slate-900">
-              {tablesExist.itemsTable ? 'Supabase Table (community_items & messages)' : 'Local Resilient Fallback Active'}
-            </strong>
-          </span>
-          <span className="text-slate-400">• 30-Minute Auto-Expiry Live Chat Active</span>
-        </div>
-        {!tablesExist.itemsTable && (
-          <span className="text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold">
-            Tip: Run &apos;Copy Supabase SQL&apos; in Supabase SQL editor to create persistent cloud tables.
-          </span>
-        )}
       </div>
 
       {/* Modern Navigation Tabs */}
