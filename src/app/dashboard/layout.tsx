@@ -83,10 +83,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <FeedbackProvider>
-      <div className="min-h-screen bg-slate-50/50 flex">
-        {/* Sidebar */}
-        <aside className="w-64 bg-slate-950 border-r border-slate-850 text-slate-300 flex flex-col shrink-0">
-          <div className="p-6 border-b border-slate-800/60">
+      <div className="h-screen w-full flex overflow-hidden bg-slate-50/50">
+        {/* Fixed, stationary sidebar */}
+        <aside className="w-64 h-full bg-slate-950 border-r border-slate-800 text-slate-300 flex flex-col shrink-0">
+          <div className="p-6 border-b border-slate-800/60 shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700/60 flex items-center justify-center text-slate-200 font-medium text-xs">
                 P
@@ -98,7 +98,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </div>
 
-          <nav className="flex-1 px-3 py-4 space-y-1">
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -126,7 +126,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             })}
           </nav>
 
-          <div className="p-4 border-t border-slate-850">
+          <div className="p-4 border-t border-slate-800 shrink-0">
             <button
               onClick={handleSignOut}
               className="flex items-center gap-2.5 text-xs text-slate-400 hover:text-slate-200 transition-colors duration-150 ease-out w-full px-3 py-2 rounded-lg hover:bg-slate-900"
@@ -137,8 +137,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </aside>
 
-        {/* Main Content Area */}
-        <main className="flex-1 p-8 overflow-auto">
+        {/* Main Content Area - scrolls independently while sidebar stays pinned */}
+        <main className="flex-1 h-full overflow-y-auto p-8">
           {children}
         </main>
       </div>
