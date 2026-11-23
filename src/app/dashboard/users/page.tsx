@@ -164,82 +164,82 @@ export default function UsersPage() {
   );
 
   return (
-    <div className="max-w-7xl mx-auto pb-12">
-      <div className="flex justify-between items-center mb-6">
+    <div className="max-w-7xl mx-auto pb-16">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-6 gap-2">
         <div>
-          <h2 className="text-3xl font-bold text-gray-800">User Management</h2>
-          <p className="text-gray-600 mt-1">Total control over players, XP, streaks, hearts, roles, and account records.</p>
+          <h1 className="text-2xl font-medium text-slate-900 tracking-tight">Learner accounts</h1>
+          <p className="text-sm text-slate-500 mt-1">Review student profiles, inspect progress and streaks, and manage administrative permissions.</p>
         </div>
-        <div className="text-sm font-semibold px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg">
-          {users.length} Total Users Registered
+        <div className="text-xs text-slate-500 font-normal">
+          {users.length} registered {users.length === 1 ? 'learner' : 'learners'}
         </div>
       </div>
 
       {/* Search Bar */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex items-center gap-3">
-        <Search className="text-gray-400" size={20} />
+      <div className="bg-white p-3 rounded-xl border border-slate-200 mb-6 flex items-center gap-2.5">
+        <Search className="text-slate-400 shrink-0" size={18} />
         <input 
           type="text" 
           placeholder="Search by username, district, or user UUID..." 
-          className="flex-1 outline-none text-gray-700 bg-transparent"
+          className="flex-1 outline-none text-slate-900 bg-transparent text-sm placeholder-slate-400"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         {search && (
-          <button onClick={() => setSearch('')} className="text-gray-400 hover:text-gray-600 text-sm">
+          <button onClick={() => setSearch('')} className="text-xs text-slate-400 hover:text-slate-600 px-2 py-0.5 bg-slate-100 rounded">
             Clear
           </button>
         )}
       </div>
 
       {/* Data Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-none">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 text-sm">
-              <th className="p-4 font-medium">User Profile</th>
-              <th className="p-4 font-medium">District</th>
-              <th className="p-4 font-medium">Gamification Stats</th>
-              <th className="p-4 font-medium">Role</th>
-              <th className="p-4 font-medium text-right">Actions</th>
+            <tr className="bg-slate-50/60 border-b border-slate-200 text-slate-500 text-xs">
+              <th className="px-4 py-3 font-medium">Learner</th>
+              <th className="px-4 py-3 font-medium">District</th>
+              <th className="px-4 py-3 font-medium">Progress & streak</th>
+              <th className="px-4 py-3 font-medium">Role</th>
+              <th className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="p-10 text-center text-gray-500">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-600 border-t-transparent mb-2"></div>
-                  <div>Loading players from database...</div>
+                <td colSpan={5} className="p-12 text-center text-slate-500 text-sm">
+                  Loading learner accounts...
                 </td>
               </tr>
             ) : filteredUsers.length === 0 ? (
               <tr>
-                <td colSpan={5} className="p-10 text-center text-gray-500">
-                  No users found matching "{search}".
+                <td colSpan={5} className="p-12 text-center text-slate-500 text-sm">
+                  No learner accounts found matching "{search}".
                 </td>
               </tr>
             ) : (
               filteredUsers.map(user => (
-                <tr key={user.id} className="border-b border-gray-50 hover:bg-gray-50/60 transition-colors">
-                  <td className="p-4">
+                <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                  <td className="px-4 py-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg flex items-center justify-center font-medium text-sm">
+                      <div className="w-8 h-8 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg flex items-center justify-center font-medium text-xs shrink-0">
                         {user.username ? user.username.substring(0, 1).toUpperCase() : 'U'}
                       </div>
                       <div>
-                        <div className="font-semibold text-slate-900">{user.username || 'Anonymous Player'}</div>
-                        <div className="text-xs text-slate-400 font-mono">
+                        <div className="font-medium text-sm text-slate-900">{user.username || 'Anonymous Player'}</div>
+                        <div className="text-xs text-slate-400 font-mono mt-0.5">
                           {user.id}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td className="p-4">
+                  <td className="px-4 py-3.5">
                     <span className="text-sm text-slate-600">
                       {user.district || 'Maharashtra'}
                     </span>
                   </td>
-                  <td className="p-4">
+                  <td className="px-4 py-3.5">
                     <div className="text-sm">
                       <div className="font-medium text-slate-900">{(user.total_xp || 0).toLocaleString()} XP</div>
                       <div className="text-xs text-slate-500 mt-0.5">
@@ -247,15 +247,17 @@ export default function UsersPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="p-4">
-                    <span className={`inline-block px-2.5 py-0.5 rounded text-xs font-medium ${user.is_admin ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                  <td className="px-4 py-3.5">
+                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                      user.is_admin ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'
+                    }`}>
                       {user.is_admin ? 'Admin' : 'Player'}
                     </span>
                   </td>
-                  <td className="p-4 text-right">
+                  <td className="px-4 py-3.5 text-right">
                     <button 
                       onClick={() => openEditModal(user)}
-                      className="text-sm font-medium text-indigo-600 hover:text-indigo-800 transition-colors px-2 py-1"
+                      className="text-xs font-medium text-slate-800 hover:text-slate-950 border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 transition-colors bg-white"
                     >
                       Edit
                     </button>
@@ -267,26 +269,26 @@ export default function UsersPage() {
         </table>
       </div>
 
-      {/* EDIT USER MODAL (TOTAL CONTROL) */}
+      {/* EDIT USER MODAL */}
       {editingUser && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-100">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 shadow-xl">
             {/* Modal Header */}
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 sticky top-0 z-10 backdrop-blur">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-start sticky top-0 bg-white z-10">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xl font-bold shadow">
+                <div className="w-10 h-10 bg-slate-100 text-slate-800 border border-slate-200 rounded-lg flex items-center justify-center font-medium text-base shrink-0">
                   {formUsername ? formUsername.substring(0, 1).toUpperCase() : 'U'}
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900">Edit User & Total Control</h3>
-                  <div className="text-xs text-gray-400 font-mono">ID: {editingUser.id}</div>
+                  <h3 className="text-base font-medium text-slate-900">Edit player profile</h3>
+                  <div className="text-xs text-slate-400 font-mono mt-0.5">{editingUser.id}</div>
                 </div>
               </div>
               <button 
                 onClick={closeEditModal} 
-                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
@@ -294,7 +296,7 @@ export default function UsersPage() {
             <div className="p-6 space-y-6">
               {feedbackMsg && (
                 <div className={`p-4 rounded-xl text-sm flex items-center gap-2 font-medium ${
-                  feedbackMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+                  feedbackMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
                 }`}>
                   {feedbackMsg.type === 'success' ? <Check size={18} /> : <AlertTriangle size={18} />}
                   <span>{feedbackMsg.text}</span>
@@ -303,22 +305,22 @@ export default function UsersPage() {
 
               {/* 1. Basic Profile Info */}
               <div>
-                <h4 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-3">Profile Information</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">Profile details</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Username</label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1.5">Username</label>
                     <input 
                       type="text" 
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-sm text-gray-800"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-slate-400 outline-none text-sm text-slate-900 bg-white transition-colors"
                       value={formUsername}
                       onChange={(e) => setFormUsername(e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">District / Region</label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1.5">District</label>
                     <input 
                       type="text" 
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-sm text-gray-800"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-slate-400 outline-none text-sm text-slate-900 bg-white transition-colors"
                       value={formDistrict}
                       onChange={(e) => setFormDistrict(e.target.value)}
                     />
@@ -327,121 +329,110 @@ export default function UsersPage() {
               </div>
 
               {/* 2. Gamification Control: XP, Streaks, Hearts */}
-              <div className="pt-2 border-t border-gray-100">
-                <h4 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-3">Gamification Economy (Total Control)</h4>
+              <div className="pt-4 border-t border-slate-100">
+                <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">Learning statistics</h4>
                 
-                {/* Total XP & Weekly XP */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div className="bg-yellow-50/50 p-4 rounded-xl border border-yellow-100">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="text-xs font-bold text-yellow-800 flex items-center gap-1">
-                        <Zap size={14} className="text-yellow-600 fill-yellow-600" /> Total XP
-                      </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Total XP */}
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="text-xs font-medium text-slate-700">Total XP</label>
                       <div className="flex gap-1">
                         <button 
                           type="button" 
                           onClick={() => setFormTotalXp(prev => prev + 100)}
-                          className="px-2 py-0.5 bg-yellow-200 text-yellow-900 rounded text-[11px] font-bold hover:bg-yellow-300"
+                          className="px-2 py-0.5 bg-white border border-slate-200 text-slate-700 rounded text-xs font-medium hover:bg-slate-100 transition-colors"
                         >+100</button>
                         <button 
                           type="button" 
                           onClick={() => setFormTotalXp(prev => prev + 500)}
-                          className="px-2 py-0.5 bg-yellow-200 text-yellow-900 rounded text-[11px] font-bold hover:bg-yellow-300"
+                          className="px-2 py-0.5 bg-white border border-slate-200 text-slate-700 rounded text-xs font-medium hover:bg-slate-100 transition-colors"
                         >+500</button>
                       </div>
                     </div>
                     <input 
                       type="number" 
-                      className="w-full px-3 py-2 rounded-lg border border-yellow-200 bg-white font-bold text-gray-900 outline-none"
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-900 outline-none focus:border-slate-400"
                       value={formTotalXp}
                       onChange={(e) => setFormTotalXp(Number(e.target.value) || 0)}
                     />
                   </div>
 
-                  <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                    <label className="block text-xs font-bold text-blue-800 mb-1">Weekly XP (League Standings)</label>
+                  {/* Weekly XP */}
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50">
+                    <label className="block text-xs font-medium text-slate-700 mb-1.5">Weekly XP (league)</label>
                     <input 
                       type="number" 
-                      className="w-full px-3 py-2 rounded-lg border border-blue-200 bg-white font-bold text-gray-900 outline-none"
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-900 outline-none focus:border-slate-400"
                       value={formWeeklyXp}
                       onChange={(e) => setFormWeeklyXp(Number(e.target.value) || 0)}
                     />
                   </div>
-                </div>
 
-                {/* Streak Days & Hearts */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Streak Count */}
-                  <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-100">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="text-xs font-bold text-orange-800 flex items-center gap-1">
-                        <Flame size={14} className="text-orange-600 fill-orange-600" /> Streak Count (Days)
-                      </label>
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="text-xs font-medium text-slate-700">Streak (days)</label>
                       <div className="flex gap-1">
                         <button 
                           type="button" 
                           onClick={() => setFormStreak(prev => prev + 1)}
-                          className="px-2 py-0.5 bg-orange-200 text-orange-900 rounded text-[11px] font-bold hover:bg-orange-300"
+                          className="px-2 py-0.5 bg-white border border-slate-200 text-slate-700 rounded text-xs font-medium hover:bg-slate-100 transition-colors"
                         >+1d</button>
                         <button 
                           type="button" 
                           onClick={() => setFormStreak(prev => prev + 7)}
-                          className="px-2 py-0.5 bg-orange-200 text-orange-900 rounded text-[11px] font-bold hover:bg-orange-300"
+                          className="px-2 py-0.5 bg-white border border-slate-200 text-slate-700 rounded text-xs font-medium hover:bg-slate-100 transition-colors"
                         >+7d</button>
                         <button 
                           type="button" 
                           onClick={() => setFormStreak(0)}
-                          className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-[11px] font-bold hover:bg-red-200"
+                          className="px-2 py-0.5 bg-white border border-slate-200 text-slate-700 rounded text-xs font-medium hover:bg-slate-100 transition-colors"
                         >Reset</button>
                       </div>
                     </div>
                     <input 
                       type="number" 
-                      className="w-full px-3 py-2 rounded-lg border border-orange-200 bg-white font-bold text-gray-900 outline-none"
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-900 outline-none focus:border-slate-400"
                       value={formStreak}
                       onChange={(e) => setFormStreak(Number(e.target.value) || 0)}
                     />
                   </div>
 
                   {/* Current Hearts */}
-                  <div className="bg-red-50/50 p-4 rounded-xl border border-red-100">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="text-xs font-bold text-red-800 flex items-center gap-1">
-                        <Heart size={14} className="text-red-600 fill-red-600" /> Current Hearts
-                      </label>
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="text-xs font-medium text-slate-700">Hearts (0 to 5)</label>
                       <div className="flex gap-1">
                         <button 
                           type="button" 
                           onClick={() => setFormHearts(5)}
-                          className="px-2 py-0.5 bg-red-200 text-red-900 rounded text-[11px] font-bold hover:bg-red-300"
-                        >Set 5</button>
-                        <button 
-                          type="button" 
-                          onClick={() => setFormHearts(25)}
-                          className="px-2 py-0.5 bg-red-200 text-red-900 rounded text-[11px] font-bold hover:bg-red-300"
-                        >Set 25 (VIP)</button>
+                          className="px-2 py-0.5 bg-white border border-slate-200 text-slate-700 rounded text-xs font-medium hover:bg-slate-100 transition-colors"
+                        >Full (5)</button>
                         <button 
                           type="button" 
                           onClick={() => setFormHearts(0)}
-                          className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-[11px] font-bold hover:bg-gray-300"
+                          className="px-2 py-0.5 bg-white border border-slate-200 text-slate-700 rounded text-xs font-medium hover:bg-slate-100 transition-colors"
                         >0</button>
                       </div>
                     </div>
                     <input 
                       type="number" 
-                      className="w-full px-3 py-2 rounded-lg border border-red-200 bg-white font-bold text-gray-900 outline-none"
+                      min={0}
+                      max={5}
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-900 outline-none focus:border-slate-400"
                       value={formHearts}
-                      onChange={(e) => setFormHearts(Number(e.target.value) || 0)}
+                      onChange={(e) => setFormHearts(Math.max(0, Math.min(5, Number(e.target.value) || 0)))}
                     />
                   </div>
                 </div>
               </div>
 
               {/* 3. Role & Permissions */}
-              <div className="pt-2 border-t border-gray-100 flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+              <div className="p-4 border border-slate-200 rounded-xl bg-slate-50/50 flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-bold text-gray-900">Admin Privileges</div>
-                  <div className="text-xs text-gray-500">Allow this user to access the dashboard and administrative tools.</div>
+                  <div className="text-sm font-medium text-slate-900">Administrator access</div>
+                  <div className="text-xs text-slate-500 mt-0.5">Grant this account permission to use the admin portal and edit curriculum.</div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input 
@@ -450,70 +441,64 @@ export default function UsersPage() {
                     checked={formIsAdmin}
                     onChange={(e) => setFormIsAdmin(e.target.checked)}
                   />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                  <div className="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-slate-900"></div>
                 </label>
               </div>
 
               {/* 4. Danger Zone: Delete User & All Data */}
-              <div className="pt-4 border-t border-gray-200">
-                <div className="p-4 rounded-xl border border-red-200 bg-red-50/40">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="text-sm font-bold text-red-800 flex items-center gap-1.5">
-                        <AlertTriangle size={16} /> Danger Zone: Permanent Account Deletion
-                      </div>
-                      <div className="text-xs text-red-600 mt-1">
-                        Permanently deletes this user, their auth login, progress, streaks, hearts, test records, and chats.
-                      </div>
-                    </div>
-                    {!showDeleteConfirm ? (
+              <div className="p-4 border border-rose-200/80 rounded-xl bg-rose-50/20">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium text-rose-950">Delete learner account</div>
+                    <div className="text-xs text-rose-700/80 mt-0.5">Permanently purge this player's learning records, streak, and authentication credentials.</div>
+                  </div>
+                  {!showDeleteConfirm ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="self-start sm:self-auto px-3 py-1.5 text-xs font-medium text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 rounded-lg transition-colors"
+                    >
+                      Delete user
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setShowDeleteConfirm(true)}
-                        className="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors"
                       >
-                        Delete User
+                        Cancel
                       </button>
-                    ) : (
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowDeleteConfirm(false)}
-                          className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg text-xs font-semibold"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isDeleting}
-                          onClick={handleDeleteUser}
-                          className="px-3.5 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded-lg text-xs font-bold shadow-sm flex items-center gap-1"
-                        >
-                          {isDeleting ? 'Deleting...' : 'Confirm Purge All'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                      <button
+                        type="button"
+                        disabled={isDeleting}
+                        onClick={handleDeleteUser}
+                        className="px-3 py-1.5 text-xs font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {isDeleting ? 'Deleting...' : 'Confirm purge'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
+            <div className="p-6 border-t border-slate-100 flex items-center justify-end gap-2 bg-slate-50/40 rounded-b-2xl">
               <button 
                 type="button"
                 onClick={closeEditModal}
-                className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-100 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 bg-transparent rounded-lg transition-colors"
               >
-                Close
+                Cancel
               </button>
               <button 
                 type="button"
                 disabled={isSaving}
                 onClick={handleSaveUser}
-                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold transition-colors shadow-sm flex items-center gap-2"
+                className="px-4 py-2 text-sm font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-colors disabled:opacity-50"
               >
-                {isSaving ? 'Saving Changes...' : 'Save All Changes'}
+                {isSaving ? 'Saving...' : 'Save changes'}
               </button>
             </div>
           </div>
