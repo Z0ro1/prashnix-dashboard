@@ -223,67 +223,42 @@ export default function UsersPage() {
                 <tr key={user.id} className="border-b border-gray-50 hover:bg-gray-50/60 transition-colors">
                   <td className="p-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-purple-600 text-white rounded-full flex items-center justify-center font-bold text-base shadow-sm">
+                      <div className="w-9 h-9 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg flex items-center justify-center font-medium text-sm">
                         {user.username ? user.username.substring(0, 1).toUpperCase() : 'U'}
                       </div>
                       <div>
-                        <div className="font-semibold text-gray-900">{user.username || 'Anonymous Player'}</div>
-                        <div className="text-xs text-gray-400 font-mono flex items-center gap-1">
+                        <div className="font-semibold text-slate-900">{user.username || 'Anonymous Player'}</div>
+                        <div className="text-xs text-slate-400 font-mono">
                           {user.id}
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="p-4">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
-                      📍 {user.district || 'Maharashtra'}
+                    <span className="text-sm text-slate-600">
+                      {user.district || 'Maharashtra'}
                     </span>
                   </td>
                   <td className="p-4">
-                    <div className="flex flex-col gap-1 text-xs">
-                      <div className="flex items-center gap-1.5 font-semibold text-gray-700">
-                        <Zap size={14} className="text-yellow-500 fill-yellow-500"/> {user.total_xp || 0} XP
-                      </div>
-                      <div className="flex items-center gap-1.5 font-semibold text-gray-700">
-                        <Heart size={14} className="text-red-500 fill-red-500"/> {user.current_hearts ?? 5} Hearts
-                      </div>
-                      <div className="flex items-center gap-1.5 font-semibold text-gray-700">
-                        <Flame size={14} className="text-orange-500 fill-orange-500"/> {user.streak_count || 0} Days Streak
+                    <div className="text-sm">
+                      <div className="font-medium text-slate-900">{(user.total_xp || 0).toLocaleString()} XP</div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        {user.current_hearts ?? 5} hearts · {user.streak_count || 0} day streak
                       </div>
                     </div>
                   </td>
                   <td className="p-4">
-                    {user.is_admin ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-semibold">
-                        <ShieldCheck size={13} /> Admin
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
-                        <UserCheck size={13} /> Player
-                      </span>
-                    )}
+                    <span className={`inline-block px-2.5 py-0.5 rounded text-xs font-medium ${user.is_admin ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                      {user.is_admin ? 'Admin' : 'Player'}
+                    </span>
                   </td>
                   <td className="p-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button 
-                        onClick={() => openEditModal(user)}
-                        className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors flex items-center gap-1 border border-indigo-200"
-                        title="Edit User Stats & Role"
-                      >
-                        <Edit2 size={16} />
-                        <span className="text-xs font-semibold">Edit</span>
-                      </button>
-                      <button 
-                        onClick={() => {
-                          openEditModal(user);
-                          setShowDeleteConfirm(true);
-                        }}
-                        className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors border border-red-200" 
-                        title="Delete User"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+                    <button 
+                      onClick={() => openEditModal(user)}
+                      className="text-sm font-medium text-indigo-600 hover:text-indigo-800 transition-colors px-2 py-1"
+                    >
+                      Edit
+                    </button>
                   </td>
                 </tr>
               ))
