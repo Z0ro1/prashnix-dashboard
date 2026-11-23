@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { LogOut, LayoutDashboard, Users, HelpCircle, Trophy, BookOpen, Sparkles, Calendar, MessageSquare } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, HelpCircle, Trophy, BookOpen, Sparkles, Calendar, MessageSquare, Flag } from 'lucide-react';
 import Link from 'next/link';
 import { FeedbackProvider } from '@/components/FeedbackDialog';
 
@@ -10,6 +10,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const [loading, setLoading] = useState(true);
+  const [pendingReportsCount, setPendingReportsCount] = useState<number>(0);
+
+  useEffect(() => {
+    async function fetchPendingCount() {
+      try {
+        const { count, error } = await supabase
+          .from('reported_questions')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'pending');
+        if (!error && typeof count === 'number') {
+          setPendingReportsCount(count);
+        }
+      } catch (e) {
+        // quiet fallback
+      }
+    }
+    fetchPendingCount();
+  }, [pathname]);
 
   useEffect(() => {
     async function checkAuth() {
@@ -68,6 +86,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Link>
             <Link href="/dashboard/questions" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard/questions' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
               <HelpCircle size={20} /> Question Bank
+            </Link>
+            <Link href="/dashboard/reports" className={`flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard/reports' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
+              <div className="flex items-center gap-3">
+                <Flag size={20} className="text-rose-400" /> Reported Questions
+              </div>
+              {pendingReportsCount > 0 && (
+                <span className="bg-rose-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                  {pendingReportsCount}
+                </span>
+              )}
             </Link>
             <Link href="/dashboard/curriculum" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard/curriculum' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
               <BookOpen size={20} /> Curriculum Builder
