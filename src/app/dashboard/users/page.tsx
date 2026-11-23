@@ -44,10 +44,20 @@ export default function UsersPage() {
 
   const fetchUsers = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
+
+    // Fallback if created_at ordering fails
+    if (error) {
+      console.warn('Could not order by created_at, falling back:', error);
+      const fallback = await supabase
+        .from('profiles')
+        .select('*');
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (!error && data) {
       setUsers(data as UserProfile[]);
