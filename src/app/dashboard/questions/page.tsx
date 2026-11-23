@@ -34,6 +34,7 @@ interface QuestionItem {
     explanation?: string;
     pyq_year?: number | null;
     district_tag?: string | null;
+    subject_tag?: string | null;
   };
 }
 
@@ -59,6 +60,10 @@ export default function QuestionBankPage() {
 
   useEffect(() => {
     fetchQuestions();
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search).get('search');
+      if (q) setSearch(q);
+    }
   }, []);
 
   const fetchQuestions = async () => {
@@ -364,12 +369,17 @@ ${explanationPart}`;
       const text = (q.content?.text || '').toLowerCase();
       const explanation = (q.content?.explanation || '').toLowerCase();
       const district = (q.content?.district_tag || '').toLowerCase();
+      const subject = (q.content?.subject_tag || '').toLowerCase();
+      const id = (q.id || '').toLowerCase();
+      const displayId = (q.display_id || '').toLowerCase();
       const s = search.toLowerCase();
       return (
+        id.includes(s) ||
+        displayId.includes(s) ||
         text.includes(s) ||
         explanation.includes(s) ||
         district.includes(s) ||
-        (q.display_id || '').toLowerCase().includes(s)
+        subject.includes(s)
       );
     });
   }, [questions, search, showDuplicatesOnly, duplicateIdSet]);
@@ -444,7 +454,7 @@ ${explanationPart}`;
         <Search className="text-gray-400 shrink-0" size={20} />
         <input
           type="text"
-          placeholder="Search by question text, explanation, or district..."
+          placeholder="Search by Question ID (UUID or display code), text, explanation, or district..."
           className="flex-1 outline-none text-gray-700 bg-transparent text-sm"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
