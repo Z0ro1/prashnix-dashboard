@@ -19,17 +19,21 @@ export default function LoginPage() {
 
     try {
       const normalizedEmail = email.trim().toLowerCase();
-      // Allow static login requested by user
-      if (
-        (normalizedEmail === 'sauravahire15@gmail.com' || normalizedEmail === 'sauavahire15@gmail.com') &&
-        password === 'saurav@123'
-      ) {
+
+      // 1. Server-side verified admin authentication (credentials never leaked to browser)
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail, password }),
+      });
+
+      if (res.ok) {
         localStorage.setItem('streak_admin_auth', 'true');
         router.push('/dashboard');
         return;
       }
 
-      // Fallback: Supabase Auth if configured
+      // 2. Fallback: Supabase Auth if configured
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
         password,

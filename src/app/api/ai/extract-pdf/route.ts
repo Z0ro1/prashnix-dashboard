@@ -42,6 +42,14 @@ export async function POST(req: NextRequest) {
 
     const arrayBuffer = await file.arrayBuffer();
 
+    // Enforce 25MB maximum file upload limit to prevent memory exhaustion / DoS
+    if (arrayBuffer.byteLength > 25 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: 'File size exceeds maximum limit of 25MB.' },
+        { status: 413 }
+      );
+    }
+
     let pdfDoc: PDFDocument | null = null;
     let totalPages = 1;
     try {

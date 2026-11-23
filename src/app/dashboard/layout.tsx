@@ -78,9 +78,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Link href="/dashboard/weekly-tests" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard/weekly-tests' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
               <Calendar size={20} className="text-emerald-400" /> Weekly Tests (100 Qs)
             </Link>
+            {/* Community v2: Temporarily commented out
             <Link href="/dashboard/community" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard/community' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
               <MessageSquare size={20} className="text-indigo-400" /> Community Hub
             </Link>
+            */}
           </nav>
           <div className="p-4 border-t border-indigo-800">
             <button onClick={handleSignOut} className="flex items-center gap-3 text-indigo-300 hover:text-white transition-colors w-full px-4 py-2">

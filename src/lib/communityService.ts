@@ -18,10 +18,42 @@ export interface CommunityItem {
   image_url?: string;
   badge_tag?: string;
   action_url?: string;
+  fit_mode?: 'cover' | 'contain';
   is_pinned: boolean;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
+}
+
+export async function uploadCommunityImage(file: File | Blob): Promise<string> {
+  const fileExt = (file instanceof File ? file.name.split('.').pop() : 'jpg') || 'jpg';
+  const fileName = `community_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+  const filePath = `posters/${fileName}`;
+
+  try {
+    const { data, error } = await supabase.storage
+      .from('community-media')
+      .upload(filePath, file, { cacheControl: '3600', upsert: true });
+
+    if (!error && data) {
+      const { data: publicUrlData } = supabase.storage
+        .from('community-media')
+        .getPublicUrl(filePath);
+      if (publicUrlData?.publicUrl) {
+        return publicUrlData.publicUrl;
+      }
+    }
+  } catch (err) {
+    console.warn('Supabase storage upload failed, converting to data URL fallback:', err);
+  }
+
+  // Fallback: Convert to Base64 Data URL so user can always save without breaking!
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 const LOCAL_STORAGE_ITEMS_KEY = 'prashnix_community_items_fallback';
@@ -102,65 +134,6 @@ EXCEPTION
 END $$;
 `;
 
-// Helper: initial seed items for realistic mock & initial data
-export const INITIAL_COMMUNITY_SEEDS: CommunityItem[] = [
-  {
-    id: 'seed-img-1',
-    type: 'image',
-    title: 'महाराष्ट्र पोलीस भरती २०२६ मैदानी चाचणी निकष व गुण तक्ता',
-    content: '१६०० मीटर धावणे, १०० मीटर धावणे आणि गोळाफेक याचे संपूर्ण गुण वाटप चार्ट. दररोज सकाळी सराव करा!',
-    image_url: 'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?auto=format&fit=crop&w=1200&q=80',
-    badge_tag: 'मैदानी चाचणी',
-    is_pinned: true,
-    is_active: true,
-    created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-  },
-  {
-    id: 'seed-img-2',
-    type: 'image',
-    title: 'भारतीय राज्यघटना - महत्त्वाची कलमे व भाग एका दृष्टीक्षेपात',
-    content: 'पोलीस उपनिरीक्षक व कॉन्स्टेबल परीक्षेसाठी सर्वाधिक वारंवार विचारली जाणारी मूलभूत हक्क व मार्गदर्शक तत्त्वे कलमे.',
-    image_url: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=1200&q=80',
-    badge_tag: 'राज्यघटना सूत्रे',
-    is_pinned: false,
-    is_active: true,
-    created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-  },
-  {
-    id: 'seed-notice-1',
-    type: 'notice',
-    title: 'पोलीस शिपाई भरती लेखी परीक्षा हॉल तिकीट प्रसिद्धीबाबत',
-    content: 'ज्या उमेदवारांचे अर्ज स्वीकारले गेले आहेत त्यांचे प्रवेशपत्र अधिकृत पोर्टलवर उपलब्ध झाले आहेत. परीक्षेच्या २ तास आधी केंद्रावर पोहोचावे.',
-    badge_tag: 'अति महत्त्वाचे',
-    action_url: 'https://policerecruitment2024.mahait.org',
-    is_pinned: true,
-    is_active: true,
-    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-  },
-  {
-    id: 'seed-announcement-1',
-    type: 'announcement',
-    title: 'रविवार १०० गुणांची राज्यस्तरीय मेगा मॉक टेस्ट',
-    content: 'या रविवारी सकाळी १०:०० वाजता प्रशांतिक्स ॲपवर विशेष पोलीस भरती १०० गुणांची थेट टेस्ट होणार आहे. सर्वोत्कृष्ट १० विद्यार्थ्यांना प्रमाणपत्र व बॅज मिळेल.',
-    badge_tag: 'साप्ताहिक टेस्ट',
-    action_url: '',
-    is_pinned: true,
-    is_active: true,
-    created_at: new Date(Date.now() - 3600000 * 8).toISOString(),
-  },
-  {
-    id: 'seed-tip-1',
-    type: 'study_tip',
-    title: 'आजची चालू घडामोडी: महाराष्ट्रातील नवीन औद्योगिक धोरण २०२६',
-    content: 'नवीन उद्योग व रोजगार निर्मितीसाठी राज्य शासनाने ५ नवीन लॉजिस्टिक्स पार्क स्थापन करण्याची घोषणा केली आहे.',
-    badge_tag: 'चालू घडामोडी',
-    action_url: '',
-    is_pinned: false,
-    is_active: true,
-    created_at: new Date(Date.now() - 3600000 * 1).toISOString(),
-  },
-];
-
 export async function checkCommunityTablesExist(): Promise<{ messagesTable: boolean; itemsTable: boolean }> {
   let messagesTable = false;
   let itemsTable = false;
@@ -195,32 +168,34 @@ export async function fetchCommunityItems(typeFilter?: string): Promise<Communit
     const { data, error } = await query;
     if (error) throw error;
     if (data && data.length > 0) return data as CommunityItem[];
+    if (data && data.length === 0) return [];
   } catch (err) {
     console.warn('Falling back to local cache for community items:', err);
   }
 
-  // Fallback to local storage
+  // Fallback to local storage (only real user-created items)
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem(LOCAL_STORAGE_ITEMS_KEY);
     if (saved) {
       try {
         const items: CommunityItem[] = JSON.parse(saved);
-        if (typeFilter && typeFilter !== 'all') {
-          return items.filter((i) => i.type === typeFilter);
+        // Clean out any legacy mock seed items from previous sessions
+        const realItems = items.filter((i) => !i.id.startsWith('seed-'));
+        if (realItems.length !== items.length) {
+          localStorage.setItem(LOCAL_STORAGE_ITEMS_KEY, JSON.stringify(realItems));
         }
-        return items;
+        if (typeFilter && typeFilter !== 'all') {
+          return realItems.filter((i) => i.type === typeFilter);
+        }
+        return realItems;
       } catch (e) {
         console.error(e);
       }
     }
-    // Initialize with seeds if empty
-    localStorage.setItem(LOCAL_STORAGE_ITEMS_KEY, JSON.stringify(INITIAL_COMMUNITY_SEEDS));
-    return typeFilter && typeFilter !== 'all'
-      ? INITIAL_COMMUNITY_SEEDS.filter((i) => i.type === typeFilter)
-      : INITIAL_COMMUNITY_SEEDS;
+    return [];
   }
 
-  return INITIAL_COMMUNITY_SEEDS;
+  return [];
 }
 
 export async function saveCommunityItem(item: Partial<CommunityItem>): Promise<CommunityItem> {
@@ -239,6 +214,7 @@ export async function saveCommunityItem(item: Partial<CommunityItem>): Promise<C
           image_url: item.image_url ?? null,
           badge_tag: item.badge_tag ?? 'नवीन',
           action_url: item.action_url ?? null,
+          fit_mode: item.fit_mode ?? 'cover',
           is_pinned: item.is_pinned ?? false,
           is_active: item.is_active ?? true,
           updated_at: now,
@@ -258,6 +234,7 @@ export async function saveCommunityItem(item: Partial<CommunityItem>): Promise<C
           image_url: item.image_url ?? null,
           badge_tag: item.badge_tag ?? 'नवीन',
           action_url: item.action_url ?? null,
+          fit_mode: item.fit_mode ?? 'cover',
           is_pinned: item.is_pinned ?? false,
           is_active: item.is_active ?? true,
           created_at: now,
@@ -281,6 +258,7 @@ export async function saveCommunityItem(item: Partial<CommunityItem>): Promise<C
       image_url: item.image_url,
       badge_tag: item.badge_tag || 'नवीन',
       action_url: item.action_url,
+      fit_mode: item.fit_mode || 'cover',
       is_pinned: !!item.is_pinned,
       is_active: item.is_active !== undefined ? item.is_active : true,
       created_at: item.created_at || now,

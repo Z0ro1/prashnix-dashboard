@@ -33,19 +33,25 @@ import {
   fetchRecentMessages,
   sendCommunityMessage,
   deleteCommunityMessage,
+  uploadCommunityImage,
 } from '@/lib/communityService';
+import ImageUploadCrop, { FitMode } from '@/components/ImageUploadCrop';
 import { supabase } from '@/lib/supabase';
 
 type TabType = 'images' | 'notices' | 'announcements' | 'tips' | 'chat';
 
 const BADGE_SUGGESTIONS = [
-  'New',
-  'Important',
-  'Exam Date',
-  'Physical Test',
-  'Current Affairs',
-  'Weekly Test',
-  'Results Announced',
+  'मकर संक्रांती 🪁',
+  'शिवजयंती 🚩',
+  'होळी 🎨',
+  'महाराष्ट्र दिन 🇮🇳',
+  'दिवाळी 🪔',
+  'पोलीस भरती 👮',
+  'Good Morning 🌅',
+  'Daily Motivation 💪',
+  'Exam Update 📢',
+  'Important Notice ⚠️',
+  'Current Affairs 📖',
 ];
 
 export default function CommunityPage() {
@@ -65,7 +71,9 @@ export default function CommunityPage() {
   const [itemTitle, setItemTitle] = useState('');
   const [itemContent, setItemContent] = useState('');
   const [itemImageUrl, setItemImageUrl] = useState('');
-  const [itemBadgeTag, setItemBadgeTag] = useState('New');
+  const [selectedFileBlob, setSelectedFileBlob] = useState<Blob | null>(null);
+  const [itemFitMode, setItemFitMode] = useState<FitMode>('cover');
+  const [itemBadgeTag, setItemBadgeTag] = useState('मकर संक्रांती 🪁');
   const [itemActionUrl, setItemActionUrl] = useState('');
   const [itemIsPinned, setItemIsPinned] = useState(false);
   const [itemIsActive, setItemIsActive] = useState(true);
@@ -147,7 +155,9 @@ export default function CommunityPage() {
     setItemTitle('');
     setItemContent('');
     setItemImageUrl('');
-    setItemBadgeTag('New');
+    setSelectedFileBlob(null);
+    setItemFitMode('cover');
+    setItemBadgeTag('मकर संक्रांती 🪁');
     setItemActionUrl('');
     setItemIsPinned(false);
     setItemIsActive(true);
@@ -161,7 +171,9 @@ export default function CommunityPage() {
     setItemTitle(item.title);
     setItemContent(item.content || '');
     setItemImageUrl(item.image_url || '');
-    setItemBadgeTag(item.badge_tag || 'New');
+    setSelectedFileBlob(null);
+    setItemFitMode((item.fit_mode as FitMode) || 'cover');
+    setItemBadgeTag(item.badge_tag || 'नवीन');
     setItemActionUrl(item.action_url || '');
     setItemIsPinned(item.is_pinned);
     setItemIsActive(item.is_active);
@@ -175,21 +187,29 @@ export default function CommunityPage() {
       toast('error', 'Title is required', 'Please provide a title for this item.');
       return;
     }
-    if (itemType === 'image' && !itemImageUrl.trim()) {
-      toast('error', 'Image URL is required', 'Please provide a valid image URL.');
+    if (itemType === 'image' && !itemImageUrl.trim() && !selectedFileBlob) {
+      toast('error', 'Image is required', 'Please select or upload an image file from your computer or provide a URL.');
       return;
     }
 
     setSavingItem(true);
     try {
+      let finalImageUrl = itemImageUrl.trim();
+
+      // If user uploaded a computer file or cropped blob, upload it now
+      if (itemType === 'image' && selectedFileBlob) {
+        finalImageUrl = await uploadCommunityImage(selectedFileBlob);
+      }
+
       await saveCommunityItem({
         id: editingItem?.id,
         type: itemType,
         title: itemTitle.trim(),
         content: itemContent.trim(),
-        image_url: itemImageUrl.trim() || undefined,
-        badge_tag: itemBadgeTag.trim() || 'New',
+        image_url: finalImageUrl || undefined,
+        badge_tag: itemBadgeTag.trim() || 'नवीन',
         action_url: itemActionUrl.trim() || undefined,
+        fit_mode: itemFitMode,
         is_pinned: itemIsPinned,
         is_active: itemIsActive,
       });
@@ -311,6 +331,17 @@ export default function CommunityPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
+      {/* Community v2 Under Active Development Banner */}
+      <div className="bg-amber-50 border border-amber-200 text-amber-900 px-5 py-3.5 rounded-2xl flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-3">
+          <ShieldAlert className="text-amber-600 shrink-0" size={20} />
+          <span className="font-semibold text-sm">
+            Community Feature v2 in Progress: Community features are temporarily shelved from active student access while v2 is being developed.
+          </span>
+        </div>
+        <span className="text-xs bg-amber-200/90 text-amber-900 font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">v2 Pending</span>
+      </div>
+
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
         <div>
@@ -365,7 +396,7 @@ export default function CommunityPage() {
           }`}
         >
           <ImageIcon size={18} />
-          Study Charts ({items.filter((i) => i.type === 'image').length})
+          Community Feed 📸 ({items.filter((i) => i.type === 'image').length})
         </button>
 
         <button
@@ -579,12 +610,14 @@ export default function CommunityPage() {
                     item.is_active ? 'border-slate-200' : 'border-slate-200 opacity-60'
                   }`}
                 >
-                  <div className="relative h-48 bg-slate-100 overflow-hidden">
+                  <div className="relative h-56 bg-slate-900 overflow-hidden">
                     {item.image_url ? (
                       <img
                         src={item.image_url}
                         alt={item.title}
-                        className="w-full h-full object-cover"
+                        className={`w-full h-full ${
+                          item.fit_mode === 'contain' ? 'object-contain' : 'object-cover'
+                        }`}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -593,8 +626,13 @@ export default function CommunityPage() {
                     )}
                     <div className="absolute top-3 left-3 flex gap-1.5 flex-wrap">
                       <span className="bg-indigo-600 text-white font-bold text-[11px] px-2.5 py-1 rounded-lg shadow-sm">
-                        {item.badge_tag || 'Chart'}
+                        {item.badge_tag || 'Feed'}
                       </span>
+                      {item.fit_mode && (
+                        <span className="bg-black/70 backdrop-blur-sm text-white font-semibold text-[10px] px-2 py-0.5 rounded-md border border-white/20">
+                          {item.fit_mode === 'contain' ? 'Fit (Contain)' : 'Fill (Cover)'}
+                        </span>
+                      )}
                       {item.is_pinned && (
                         <span className="bg-violet-600 text-white font-bold text-[11px] px-2 py-1 rounded-lg shadow-sm flex items-center gap-1">
                           <Pin size={11} /> Pinned
@@ -740,7 +778,7 @@ export default function CommunityPage() {
       {/* CREATE / EDIT MODAL */}
       {showItemModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[92vh]">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
               <h2 className="font-bold text-slate-900 text-lg">
                 {editingItem ? 'Edit Community Post' : 'Create Community Post'}
@@ -761,7 +799,7 @@ export default function CommunityPage() {
                   onChange={(e) => setItemType(e.target.value as any)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white"
                 >
-                  <option value="image">Study Chart / Poster (Image)</option>
+                  <option value="image">Community Feed 📸 (Festival Greeting & Poster)</option>
                   <option value="notice">Official Notice</option>
                   <option value="announcement">Announcement</option>
                   <option value="study_tip">Study Tip / Quick Formula</option>
@@ -773,7 +811,11 @@ export default function CommunityPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g., Maharashtra Police Bharti Syllabus Map"
+                  placeholder={
+                    itemType === 'image'
+                      ? 'e.g., मकर संक्रांतीच्या हार्दिक शुभेच्छा! 🪁'
+                      : 'e.g., Maharashtra Police Bharti Syllabus Map'
+                  }
                   value={itemTitle}
                   onChange={(e) => setItemTitle(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
@@ -781,22 +823,15 @@ export default function CommunityPage() {
               </div>
 
               {itemType === 'image' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Image URL *</label>
-                  <input
-                    type="url"
-                    required
-                    placeholder="https://example.com/poster.jpg"
-                    value={itemImageUrl}
-                    onChange={(e) => setItemImageUrl(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
-                  {itemImageUrl && (
-                    <div className="mt-2 h-36 rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
-                      <img src={itemImageUrl} alt="Preview" className="w-full h-full object-cover" />
-                    </div>
-                  )}
-                </div>
+                <ImageUploadCrop
+                  initialImageUrl={itemImageUrl}
+                  initialFitMode={itemFitMode}
+                  onImageChange={({ blob, previewUrl, fitMode }) => {
+                    setSelectedFileBlob(blob);
+                    setItemImageUrl(previewUrl);
+                    setItemFitMode(fitMode);
+                  }}
+                />
               )}
 
               <div>
