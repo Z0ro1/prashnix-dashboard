@@ -2094,83 +2094,71 @@ Do you want to proceed?`,
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Download Templates Button */}
           <div className="relative group">
-            <button className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3.5 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium text-sm shadow-sm">
-              <FileSpreadsheet size={16} className="text-emerald-600" />
+            <button className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium text-xs">
+              <FileSpreadsheet size={14} className="text-slate-500" />
               Templates
-              <ChevronDown size={14} className="text-gray-400" />
+              <ChevronDown size={12} className="text-slate-400" />
             </button>
-            <div className="absolute right-0 mt-1 w-60 bg-white border border-gray-200 rounded-xl shadow-xl py-1 hidden group-hover:block z-30">
+            <div className="absolute right-0 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg py-1 hidden group-hover:block z-30">
               <a
                 href="/police_bharti_300_curriculum.csv"
                 download
-                className="flex items-center gap-2 px-4 py-2.5 text-xs text-emerald-700 bg-emerald-50/60 hover:bg-emerald-100 font-semibold"
+                className="flex items-center gap-2 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
               >
-                <Sparkles size={14} className="text-emerald-600" />
-                Police Bharti 300 Qs CSV
-                <span className="text-[10px] text-emerald-500 block">(Pune + Daund + Nagpur)</span>
+                <FileSpreadsheet size={13} className="text-slate-500" />
+                <span>Police Bharti 300 Qs CSV</span>
               </a>
-              <div className="border-t border-gray-100 my-1" />
+              <div className="border-t border-slate-100 my-0.5" />
               <a
                 href="/curriculum_bulk_template.csv"
                 download
-                className="flex items-center gap-2 px-4 py-2.5 text-xs text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 font-medium"
+                className="flex items-center gap-2 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
               >
-                <FileSpreadsheet size={14} className="text-indigo-600" />
-                Blank Mega Curriculum Template
-                <span className="text-[10px] text-gray-400 block">(Unit+Node+Lesson)</span>
+                <FileSpreadsheet size={13} className="text-slate-500" />
+                <span>Blank curriculum template</span>
               </a>
-              <div className="border-t border-gray-100 my-1" />
+              <div className="border-t border-slate-100 my-0.5" />
               <a
                 href="/template.csv"
                 download
-                className="flex items-center gap-2 px-4 py-2.5 text-xs text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 font-medium"
+                className="flex items-center gap-2 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
               >
-                <BookOpen size={14} className="text-blue-600" />
-                Single Lesson Questions Template
+                <BookOpen size={13} className="text-slate-500" />
+                <span>Single lesson template</span>
               </a>
             </div>
           </div>
 
-          {/* Quick Rebalance Dropdown/Button */}
-          <button
-            onClick={() => handleRebalanceAllNodes(5)}
-            className="bg-white border border-gray-300 hover:bg-indigo-50 hover:text-indigo-700 text-gray-700 px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-colors font-medium text-sm shadow-sm"
-            title="Automatically rebalance all current nodes in the database to have 5-6 lessons each"
-          >
-            <RefreshCw size={15} className="text-indigo-600" />
-            Rebalance to 5 Lessons
-          </button>
-
-          {/* Extract from PDF (AI) Button */}
-          <Link
-            href="/dashboard/extractor"
-            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-semibold text-sm shadow-sm"
-            title="Extract questions, options, and explanations directly from PDF exam papers"
-          >
-            <Sparkles size={16} />
-            Extract from PDF (AI)
-          </Link>
-
           {/* Automated Mega Import Button */}
           <button
             onClick={() => bulkFileInputRef.current?.click()}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-semibold text-sm shadow-sm"
+            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium text-xs"
             title="Import an entire curriculum from a single CSV with strict 25 questions per lesson"
           >
-            <FileSpreadsheet size={16} />
-            Auto-Build Curriculum (CSV)
+            <Upload size={14} className="text-slate-500" />
+            Import CSV
+          </button>
+
+          {/* Quick Rebalance Dropdown/Button */}
+          <button
+            onClick={() => handleRebalanceAllNodes(5)}
+            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium text-xs"
+            title="Automatically rebalance all current nodes in the database to have 5-6 lessons each"
+          >
+            <RefreshCw size={13} className="text-slate-500" />
+            Rebalance
           </button>
 
           {/* Add Unit Button */}
           <button
             onClick={() => openModal('unit')}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-semibold text-sm shadow-sm"
+            className="bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-medium text-xs"
           >
-            <Plus size={16} />
-            Add Unit
+            <Plus size={14} />
+            Add unit
           </button>
         </div>
       </div>
@@ -2180,29 +2168,29 @@ Do you want to proceed?`,
         {/* LEFT PANEL: Tree View */}
         <div className="w-1/3 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
           {/* Tree Header & Search */}
-          <div className="p-3 border-b border-gray-100 bg-gray-50 flex flex-col gap-2">
-            <div className="flex items-center justify-between font-semibold text-gray-700 text-sm">
-              <div className="flex items-center gap-2">
-                <Layers size={16} className="text-indigo-600" />
-                Curriculum Hierarchy
+          <div className="p-3.5 border-b border-slate-200 bg-slate-50/70 flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-medium text-slate-900 text-sm">
+                <Layers size={15} className="text-slate-600" />
+                Curriculum hierarchy
               </div>
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-2 text-xs text-slate-500">
                 <button
                   onClick={() => {
                     setExpandedUnits(new Set(units.map((u) => u.id)));
                     setExpandedNodes(new Set(nodes.map((n) => n.id)));
                   }}
-                  className="text-indigo-600 hover:underline"
+                  className="hover:text-slate-900 transition-colors"
                 >
                   Expand
                 </button>
-                <span className="text-gray-300">|</span>
+                <span className="text-slate-300">|</span>
                 <button
                   onClick={() => {
                     setExpandedUnits(new Set());
                     setExpandedNodes(new Set());
                   }}
-                  className="text-gray-500 hover:underline"
+                  className="hover:text-slate-900 transition-colors"
                 >
                   Collapse
                 </button>
@@ -2508,16 +2496,32 @@ Do you want to proceed?`,
         </div>
 
         {/* RIGHT PANEL: Details & Editor */}
-        <div className="w-2/3 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden relative">
+        <div className="w-2/3 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden relative">
           {!selection ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8 text-center">
-              <Layers size={64} className="mb-4 text-gray-200" />
-              <h2 className="text-xl font-semibold text-gray-700">Select an item to view & edit</h2>
-              <p className="mt-2 text-sm text-gray-500 max-w-sm">
-                Click on any Unit, Node, or Lesson in the hierarchy on the left, or use the{' '}
-                <span className="font-semibold text-emerald-600">Auto-Build Curriculum</span> button
-                above.
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center">
+              <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3 border border-slate-200">
+                <Layers size={22} className="stroke-[1.5]" />
+              </div>
+              <h2 className="text-sm font-medium text-slate-800">Select an item to view and edit</h2>
+              <p className="mt-1 text-xs text-slate-500 max-w-sm leading-relaxed">
+                Choose a unit, node, or lesson from the hierarchy on the left, or get started by adding a unit or importing CSV data.
               </p>
+              <div className="mt-4 flex items-center gap-2">
+                <button
+                  onClick={() => openModal('unit')}
+                  className="bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                >
+                  <Plus size={13} />
+                  Add unit
+                </button>
+                <button
+                  onClick={() => bulkFileInputRef.current?.click()}
+                  className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                >
+                  <Upload size={13} />
+                  Import CSV
+                </button>
+              </div>
             </div>
           ) : (
             <div className="flex flex-col h-full">
