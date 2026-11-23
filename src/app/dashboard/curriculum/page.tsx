@@ -1869,12 +1869,12 @@ Do you want to proceed?`,
             </div>
             {totalAbortedQuestionsCount > 0 && (
               <p className="text-xs text-rose-400 font-medium">
-                🛑 Aborted {totalAbortedQuestionsCount} leftover questions because they could not form a full 25-question lesson.
+                Aborted {totalAbortedQuestionsCount} leftover questions because they could not form a full 25-question lesson.
               </p>
             )}
             {stagedRows.length - rowsToImport.length > 0 && (
               <p className="text-xs text-amber-400 font-medium">
-                ⚠️ Skipped {stagedRows.length - rowsToImport.length} duplicate questions.
+                Skipped {stagedRows.length - rowsToImport.length} duplicate questions.
               </p>
             )}
           </div>,
@@ -2086,13 +2086,11 @@ Do you want to proceed?`,
       />
 
       {/* --- HEADER --- */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 px-2 gap-4 shrink-0">
+      <div className="flex flex-col md:flex-row md:items-baseline justify-between mb-4 px-2 gap-4 shrink-0">
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 flex items-center gap-2">
-            Curriculum Builder
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Manage your Duolingo-style tree, units, nodes, lessons, and question banks.
+          <h1 className="text-2xl font-medium text-slate-900 tracking-tight">Curriculum structure</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Organize milestones, learning nodes, and lesson question pools for the Prashnix skill path.
           </p>
         </div>
 
@@ -2294,7 +2292,7 @@ Do you want to proceed?`,
                           }`}
                           title={unitNodes.length > 8 ? `Over limit! ${unitNodes.length} nodes (limit is 8)` : undefined}
                         >
-                          {unitNodes.length > 8 ? `⚠️ ${unitNodes.length}/8` : `${unitNodes.length}/8 nodes`}
+                          {unitNodes.length > 8 ? `${unitNodes.length}/8` : `${unitNodes.length}/8 nodes`}
                         </span>
                         <button
                           onClick={(e) => {
@@ -2391,7 +2389,7 @@ Do you want to proceed?`,
                                           : undefined
                                       }
                                     >
-                                      {nodeLessons.length > 5 && '⚠️'} {nodeLessons.length}/5
+                                      {nodeLessons.length}/5
                                     </span>
                                     {nodeLessons.length > 5 && (
                                       <button
@@ -3265,18 +3263,18 @@ Do you want to proceed?`,
                       <AlertTriangle size={18} />
                     </div>
                     <div>
-                      <div className="font-extrabold text-amber-950 text-sm">
+                      <div className="font-semibold text-amber-950 text-sm">
                         {hierarchyPreviewStats.questionsCount === 0
-                          ? '⚠️ Action Required: 0 Lessons Ready (All questions currently aborted)'
-                          : `⚠️ ${hierarchyPreviewStats.abortedQuestionsCount} Leftover Questions Excluded`}
+                          ? 'Action required: 0 lessons ready (all questions currently excluded)'
+                          : `${hierarchyPreviewStats.abortedQuestionsCount} leftover questions excluded`}
                       </div>
                       <p className="text-amber-800 mt-1 leading-relaxed">
-                        Prashnix enforces a strict <strong>25 questions per lesson</strong> rule. Questions are currently spread across micro-nodes with fewer than 25 questions each, so they cannot form complete lessons. Consolidate them below to form full 25-question lessons immediately!
+                        Prashnix enforces a strict <strong>25 questions per lesson</strong> rule. Questions are currently spread across micro-nodes with fewer than 25 questions each, so they cannot form complete lessons. Consolidate them below to form full 25-question lessons immediately.
                       </p>
                     </div>
                   </div>
 
-                  <span className="shrink-0 text-[10px] font-bold px-2.5 py-1 bg-amber-200/90 text-amber-900 rounded-full font-mono uppercase tracking-wider">
+                  <span className="shrink-0 text-[10px] font-medium px-2.5 py-1 bg-amber-200/90 text-amber-900 rounded font-mono">
                     Strict 25 Qs/Lesson
                   </span>
                 </div>
@@ -3284,13 +3282,13 @@ Do you want to proceed?`,
                 {/* Consolidation Action Controls */}
                 <div className="pt-2 border-t border-amber-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
                   <div className="flex items-center gap-2 flex-1">
-                    <label className="font-bold text-amber-950 shrink-0 text-[11px]">Exam Paper Node Name:</label>
+                    <label className="font-medium text-amber-950 shrink-0 text-xs">Exam paper node name:</label>
                     <input
                       type="text"
                       value={consolidateCustomTitle}
                       onChange={(e) => setConsolidateCustomTitle(e.target.value)}
                       placeholder={detectedExamTitle || 'उदा. SRPF गट २ पुणे पोलीस भरती पेपर २०२४'}
-                      className="px-3 py-1.5 bg-white border border-amber-300 rounded-xl text-xs font-semibold text-gray-800 w-full max-w-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-2xs"
+                      className="px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-medium text-gray-800 w-full max-w-sm focus:border-slate-400 outline-none"
                     />
                   </div>
 
@@ -3298,21 +3296,20 @@ Do you want to proceed?`,
                     <button
                       type="button"
                       onClick={() => handleConsolidateQuestions('unit')}
-                      className="px-3.5 py-2 bg-white hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs"
+                      className="px-3.5 py-2 bg-white hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-lg font-medium text-xs transition-colors flex items-center gap-1.5"
                       title="Combines questions within each subject unit into comprehensive 25-question lessons"
                     >
                       <Layers size={14} className="text-amber-700" />
-                      Consolidate by Unit
+                      Consolidate by unit
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleConsolidateQuestions('exam')}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-medium text-xs transition-colors flex items-center gap-1.5"
                       title="Merges all questions into 1 Exam Node (forms complete 25-question lessons)"
                     >
-                      <Sparkles size={14} />
-                      ✨ Consolidate into 1 Exam Node ({Math.floor(stagedRows.filter((r) => r.status !== 'skipped').length / 25)} Lessons x 25 Qs)
+                      Consolidate into 1 exam node ({Math.floor(stagedRows.filter((r) => r.status !== 'skipped').length / 25)} lessons x 25 qs)
                     </button>
                   </div>
                 </div>
@@ -4132,7 +4129,7 @@ Do you want to proceed?`,
                     return (
                       <option key={u.id} value={u.id}>
                         {u.display_id} - {u.title} ({uNodes.length}/8 nodes
-                        {uNodes.length >= 8 ? ' ⚠️ Full' : ''})
+                        {uNodes.length >= 8 ? ' (Full)' : ''})
                       </option>
                     );
                   })}
@@ -4164,7 +4161,7 @@ Do you want to proceed?`,
                           return (
                             <option key={n.id} value={n.id}>
                               {n.display_id} - {n.title} ({nLessons.length}/5 lessons
-                              {nLessons.length >= 5 ? ' ⚠️ Full' : ''})
+                              {nLessons.length >= 5 ? ' (Full)' : ''})
                             </option>
                           );
                         })}

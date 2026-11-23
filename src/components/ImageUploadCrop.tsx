@@ -381,22 +381,21 @@ export default function ImageUploadCrop({
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[11px] font-semibold text-slate-500 mr-1">Ratio:</span>
             {[
-              { id: '4:5', label: '4:5 (Portrait Feed)', icon: '📱' },
-              { id: '1:1', label: '1:1 (Square)', icon: '⏹' },
-              { id: '16:9', label: '16:9 (Banner)', icon: '🖥' },
-              { id: 'original', label: 'Original Free', icon: '📐' },
+              { id: '4:5', label: '4:5 Portrait' },
+              { id: '1:1', label: '1:1 Square' },
+              { id: '16:9', label: '16:9 Banner' },
+              { id: 'original', label: 'Original' },
             ].map((opt) => (
               <button
                 key={opt.id}
                 type="button"
                 onClick={() => setAspectRatio(opt.id as AspectRatioOption)}
-                className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all flex items-center gap-1 ${
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                   aspectRatio === opt.id
-                    ? 'bg-indigo-100 text-indigo-700 border border-indigo-300'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                 }`}
               >
-                <span>{opt.icon}</span>
                 <span>{opt.label}</span>
               </button>
             ))}

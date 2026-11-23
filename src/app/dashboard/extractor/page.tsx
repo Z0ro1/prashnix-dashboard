@@ -156,14 +156,14 @@ export default function SimplifiedPdfExtractorPage() {
     setPipelineLogs([
       {
         time: timeStr(),
-        msg: `🚀 Initialized AI Question Extraction Pipeline with model: ${selectedModel}`,
+        msg: `Initialized question extraction pipeline with model: ${selectedModel}`,
         type: 'info',
       },
       {
         time: timeStr(),
-        msg: `📂 ${pdfFiles.length} PDF paper(s) queued. Extraction Mode: ${
+        msg: `${pdfFiles.length} PDF paper(s) queued. Extraction Mode: ${
           extractionDepth === 'bulk_unlimited'
-            ? 'Unlimited Bulk Extraction (All 1000+ Questions • Auto-Chunking)'
+            ? 'Unlimited Bulk Extraction (All Questions • Auto-Chunking)'
             : 'Weekly Test Batch (100 Qs Only)'
         }`,
         type: 'info',
@@ -190,7 +190,7 @@ export default function SimplifiedPdfExtractorPage() {
 
         // Step 1: Ingest & get PDF metadata (page count)
         setCurrentStep(1);
-        addPipelineLog(`📄 [File ${i + 1}/${pdfFiles.length}] Ingesting "${file.name}" (${(file.size / (1024 * 1024)).toFixed(2)} MB)...`, 'info');
+        addPipelineLog(`[File ${i + 1}/${pdfFiles.length}] Ingesting "${file.name}" (${(file.size / (1024 * 1024)).toFixed(2)} MB)...`, 'info');
 
         const infoFormData = new FormData();
         infoFormData.append('file', file);
@@ -212,7 +212,7 @@ export default function SimplifiedPdfExtractorPage() {
 
         setCurrentStep(2);
         addPipelineLog(
-          `📑 "${file.name}" has ${totalPages} total page(s).`,
+          `"${file.name}" has ${totalPages} total page(s).`,
           'info'
         );
 
@@ -220,7 +220,7 @@ export default function SimplifiedPdfExtractorPage() {
           // Specific 100-question batch for weekly test
           setCurrentStep(3);
           setProcessingStatus(`Extracting 100 questions from "${file.name}" for Weekly Test...`);
-          addPipelineLog(`⚡ Running Smart Dual-Batch for 100 questions on "${file.name}"...`, 'info');
+          addPipelineLog(`Running dual-batch for 100 questions on "${file.name}"...`, 'info');
 
           const formData = new FormData();
           formData.append('file', file);
@@ -254,7 +254,7 @@ export default function SimplifiedPdfExtractorPage() {
           setExtractedQuestions([...allExtracted]);
 
           addPipelineLog(
-            `✅ Extracted ${questions.length} questions from ${file.name}.`,
+            `Extracted ${questions.length} questions from ${file.name}.`,
             'success'
           );
         } else {
@@ -263,7 +263,7 @@ export default function SimplifiedPdfExtractorPage() {
           const totalChunks = Math.ceil(totalPages / PAGES_PER_CHUNK);
 
           addPipelineLog(
-            `⚡ Unlimited Chunk Engine: Dividing ${totalPages} pages into ${totalChunks} chunk(s) (${PAGES_PER_CHUNK} pages/chunk) to extract 100% of questions...`,
+            `Chunk engine: Dividing ${totalPages} pages into ${totalChunks} chunk(s) (${PAGES_PER_CHUNK} pages/chunk)...`,
             'info'
           );
 
@@ -282,7 +282,7 @@ export default function SimplifiedPdfExtractorPage() {
             const prog = Math.min(94, Math.round((fileBase + chunkBase) * 90 + 5));
             setProgressPercent(prog);
 
-            addPipelineLog(`🔍 [${chunkLabel}] Slicing & extracting MCQs with ${selectedModel}...`, 'info');
+            addPipelineLog(`[${chunkLabel}] Slicing & extracting MCQs with ${selectedModel}...`, 'info');
 
             const chunkFormData = new FormData();
             chunkFormData.append('file', file);
@@ -306,7 +306,7 @@ export default function SimplifiedPdfExtractorPage() {
 
               const data = await res.json();
               if (!res.ok) {
-                addPipelineLog(`⚠️ [${chunkLabel}] Chunk notice: ${data.error || 'Failed to extract chunk'}`, 'warn');
+                addPipelineLog(`[${chunkLabel}] Chunk notice: ${data.error || 'Failed to extract chunk'}`, 'warn');
                 continue;
               }
 
@@ -324,11 +324,11 @@ export default function SimplifiedPdfExtractorPage() {
 
               setCurrentStep(5);
               addPipelineLog(
-                `✅ [${chunkLabel}] Extracted ${chunkQuestions.length} questions. (Running total: ${allExtracted.length} Qs)`,
+                `[${chunkLabel}] Extracted ${chunkQuestions.length} questions. (Running total: ${allExtracted.length} Qs)`,
                 'success'
               );
             } catch (chunkErr: any) {
-              addPipelineLog(`⚠️ [${chunkLabel}] Network glitch: ${chunkErr?.message || 'Retrying next chunk'}`, 'warn');
+              addPipelineLog(`[${chunkLabel}] Network glitch: ${chunkErr?.message || 'Retrying next chunk'}`, 'warn');
             }
           }
         }
@@ -346,7 +346,7 @@ export default function SimplifiedPdfExtractorPage() {
       setShowQuestionsList(true);
 
       addPipelineLog(
-        `🎉 Pipeline complete: All ${reindexed.length} questions extracted & verified! Ready for Curriculum (unlimited) or Weekly Test (100 Qs).`,
+        `Pipeline complete: All ${reindexed.length} questions extracted & verified. Ready for Curriculum or Weekly Test.`,
         'success'
       );
 
@@ -356,7 +356,7 @@ export default function SimplifiedPdfExtractorPage() {
         `Successfully extracted ALL ${reindexed.length} questions with Marathi explanations across ${pdfFiles.length} PDF(s). Zero limits applied!`
       );
     } catch (err: any) {
-      addPipelineLog(`❌ Extraction error: ${err.message}`, 'warn');
+      addPipelineLog(`Extraction error: ${err.message}`, 'warn');
       customAlert(
         'Extraction Failed',
         err instanceof Error ? err.message : 'Error extracting questions from PDF.',
@@ -655,53 +655,39 @@ export default function SimplifiedPdfExtractorPage() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-200 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="p-2 bg-indigo-100 text-indigo-700 rounded-xl">
-              <Sparkles size={22} />
-            </span>
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
-              AI Question Extractor
-            </h1>
-            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-              Auto Clean & One-Click Set
-            </span>
-          </div>
-          <p className="text-gray-500 text-sm mt-1 leading-relaxed">
-            Drop your PDF exam papers. AI will automatically extract all questions, clean Marathi
-            Devanagari text, synthesize verified explanations, and route them to Curriculum or Weekly Tests.
+          <h1 className="text-2xl font-medium text-slate-900 tracking-tight">
+            PDF question extraction
+          </h1>
+          <p className="text-slate-500 text-sm mt-1 leading-relaxed">
+            Upload past exam papers to extract multiple-choice questions, verify Devanagari text, and route them to curriculum pools.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => router.push('/dashboard/weekly-tests')}
-            className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+            className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
           >
-            <CalendarIcon size={14} className="text-emerald-600" />
-            Scheduled Weekly Tests
+            <CalendarIcon size={14} className="text-slate-500" />
+            Weekly tests
           </button>
         </div>
       </div>
 
-      {/* AI Model Switcher & 100-Question Smart Batching Engine */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 sm:p-5 rounded-2xl shadow-sm border border-indigo-900/60 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      {/* AI Model Switcher */}
+      <div className="bg-slate-900 text-white p-5 rounded-xl border border-slate-800 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30">
-            <Cpu size={20} />
+          <div className="p-2 bg-slate-800 text-slate-300 rounded-lg border border-slate-700/60">
+            <Cpu size={18} />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-300">
-                AI Engine &amp; Model Switcher
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                Active
-              </span>
+            <div className="text-sm font-medium text-slate-100">
+              Extraction engine
             </div>
-            <p className="text-xs text-slate-300 mt-0.5">
-              Select AI model and extraction engine mode.
+            <p className="text-xs text-slate-400 mt-0.5">
+              Select AI model for optical character extraction and Devanagari formatting.
             </p>
           </div>
         </div>
@@ -717,19 +703,19 @@ export default function SimplifiedPdfExtractorPage() {
               className="bg-transparent text-xs font-bold text-white focus:outline-hidden cursor-pointer pr-1"
             >
               <option value="gemini-3-flash-preview" className="bg-slate-900 text-white">
-                ⚡ Gemini 3 Flash (Fastest • 65k Output • Recommended)
+                Gemini 3 Flash (Fastest • 65k Output)
               </option>
               <option value="gemini-3.5-flash" className="bg-slate-900 text-white">
-                🌟 Gemini 3.5 Flash (Balanced • High Quality)
+                Gemini 3.5 Flash (Balanced • High Quality)
               </option>
               <option value="gemini-3.8-flash" className="bg-slate-900 text-white">
-                🚀 Gemini 3.8 Flash (Latest Flagship)
+                Gemini 3.8 Flash (Latest Flagship)
               </option>
               <option value="gemini-3.5-flash-lite" className="bg-slate-900 text-white">
-                ⚡ Gemini 3.5 Flash Lite (Ultra Fast)
+                Gemini 3.5 Flash Lite (Ultra Fast)
               </option>
               <option value="gemini-flash-latest" className="bg-slate-900 text-white">
-                🛡️ Gemini Flash (Stable)
+                Gemini Flash (Stable)
               </option>
             </select>
           </div>
@@ -1063,7 +1049,7 @@ export default function SimplifiedPdfExtractorPage() {
                 <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-center min-w-[130px]">
                   <div className="text-[10px] font-bold text-amber-700 uppercase">Weekly Test (100 Qs)</div>
                   <div className="text-sm font-extrabold text-amber-950 mt-1">
-                    {extractedQuestions.length >= 100 ? '✅ 100 Qs Ready' : `${extractedQuestions.length}/100 Qs`}
+                    {extractedQuestions.length >= 100 ? '100 Qs Ready' : `${extractedQuestions.length}/100 Qs`}
                   </div>
                 </div>
               </div>
@@ -1072,10 +1058,9 @@ export default function SimplifiedPdfExtractorPage() {
               <div className="flex flex-wrap items-center gap-2.5">
                 <button
                   onClick={handleAutoSetToCurriculum}
-                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all shadow-indigo-100"
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium flex items-center gap-2 transition-colors"
                 >
-                  <Sparkles size={15} />
-                  Auto Set to AI Builder Curriculum
+                  Auto set to AI builder curriculum
                 </button>
 
                 <button
@@ -1235,8 +1220,8 @@ export default function SimplifiedPdfExtractorPage() {
                       }`}
                     >
                       {extractedQuestions.length >= 100
-                        ? `✓ ${extractedQuestions.length} Qs Available (Strict 100 Used)`
-                        : `⚠️ Need 100 Qs (Current: ${extractedQuestions.length}/100)`}
+                        ? `${extractedQuestions.length} Qs available (Strict 100 used)`
+                        : `Need 100 Qs (Current: ${extractedQuestions.length}/100)`}
                     </span>
                   </div>
 

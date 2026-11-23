@@ -266,60 +266,52 @@ CREATE POLICY "Enable delete for weekly_tests" ON public.weekly_tests FOR DELETE
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-200 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
-              <CalendarIcon size={22} />
-            </span>
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
-              Weekly Tests & Exam Scheduling
-            </h1>
-            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-              100 Questions / 100 Marks
-            </span>
-          </div>
-          <p className="text-gray-500 text-sm mt-1.5 leading-relaxed">
-            Schedule official full-length 100-question weekly mock tests with calendar dates and timers for app candidates.
+          <h1 className="text-2xl font-medium text-slate-900 tracking-tight">
+            Weekly examinations
+          </h1>
+          <p className="text-slate-500 text-sm mt-1 leading-relaxed">
+            Schedule official 100-question weekly mock tests with calendar dates and timers for candidates.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={copySqlSchema}
-            className="px-3.5 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+            className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
             title="Copy SQL migration for weekly_tests table"
           >
-            {copiedSql ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
-            <span>{copiedSql ? 'SQL Copied!' : 'Copy Supabase SQL'}</span>
+            {copiedSql ? <Check size={14} className="text-emerald-700" /> : <Copy size={14} />}
+            <span>{copiedSql ? 'SQL copied' : 'Copy Supabase SQL'}</span>
           </button>
 
           <button
             onClick={handleOpenCreateModal}
-            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all shadow-emerald-200"
+            className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
           >
-            <Plus size={16} />
-            Schedule Weekly Test
+            <Plus size={15} />
+            Schedule test
           </button>
         </div>
       </div>
 
       {/* Supabase Persistence Status Banner */}
-      <div className="p-3.5 bg-white border border-gray-200 rounded-xl flex items-center justify-between text-xs text-gray-600 shadow-2xs">
+      <div className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs text-slate-600">
         <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span className="w-2 h-2 rounded-full bg-slate-400"></span>
           <span>
-            Storage Mode:{' '}
-            <strong className="text-gray-900">
-              {tableExists ? 'Supabase Table (weekly_tests)' : 'Supabase Curriculum Nodes (Auto-Fallback)'}
+            Storage mode:{' '}
+            <strong className="text-slate-900 font-medium">
+              {tableExists ? 'Dedicated table (weekly_tests)' : 'Curriculum nodes (auto-fallback)'}
             </strong>
           </span>
-          <span className="text-gray-400">• Real-time App Sync Active</span>
+          <span className="text-slate-400">• App sync active</span>
         </div>
 
         {!tableExists && (
-          <span className="text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold">
-            Using resilient node storage. Click &apos;Copy Supabase SQL&apos; to enable dedicated table.
+          <span className="text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded text-xs font-medium">
+            Node storage fallback active. Run SQL migration for dedicated table.
           </span>
         )}
       </div>

@@ -65,62 +65,82 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/');
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading Admin Portal...</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm text-slate-500">
+      Loading administration portal...
+    </div>
+  );
+
+  const navItems = [
+    { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+    { href: '/dashboard/users', label: 'Learners', icon: Users },
+    { href: '/dashboard/questions', label: 'Question bank', icon: HelpCircle },
+    { href: '/dashboard/reports', label: 'Reported questions', icon: Flag, count: pendingReportsCount },
+    { href: '/dashboard/curriculum', label: 'Curriculum', icon: BookOpen },
+    { href: '/dashboard/extractor', label: 'PDF extractor', icon: Sparkles },
+    { href: '/dashboard/weekly-tests', label: 'Weekly tests', icon: Calendar },
+  ];
 
   return (
     <FeedbackProvider>
-      <div className="min-h-screen bg-gray-50 flex">
-        <div className="w-64 bg-indigo-900 text-white flex flex-col">
-          <div className="p-6">
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Trophy className="text-yellow-400" /> Prashnix
-            </h1>
-            <p className="text-indigo-300 text-sm mt-1">Admin Portal</p>
-          </div>
-          <nav className="flex-1 px-4 space-y-2 mt-4">
-            <Link href="/dashboard" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
-              <LayoutDashboard size={20} /> Dashboard
-            </Link>
-            <Link href="/dashboard/users" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard/users' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
-              <Users size={20} /> Users
-            </Link>
-            <Link href="/dashboard/questions" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard/questions' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
-              <HelpCircle size={20} /> Question Bank
-            </Link>
-            <Link href="/dashboard/reports" className={`flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard/reports' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
-              <div className="flex items-center gap-3">
-                <Flag size={20} className="text-rose-400" /> Reported Questions
+      <div className="min-h-screen bg-slate-50/50 flex">
+        {/* Sidebar */}
+        <aside className="w-64 bg-slate-950 border-r border-slate-850 text-slate-300 flex flex-col shrink-0">
+          <div className="p-6 border-b border-slate-800/60">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700/60 flex items-center justify-center text-slate-200 font-medium text-xs">
+                P
               </div>
-              {pendingReportsCount > 0 && (
-                <span className="bg-rose-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
-                  {pendingReportsCount}
-                </span>
-              )}
-            </Link>
-            <Link href="/dashboard/curriculum" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard/curriculum' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
-              <BookOpen size={20} /> Curriculum Builder
-            </Link>
-            <Link href="/dashboard/extractor" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard/extractor' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
-              <Sparkles size={20} className="text-yellow-400" /> AI PDF Extractor
-            </Link>
-            <Link href="/dashboard/weekly-tests" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard/weekly-tests' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
-              <Calendar size={20} className="text-emerald-400" /> Weekly Tests (100 Qs)
-            </Link>
-            {/* Community v2: Temporarily commented out
-            <Link href="/dashboard/community" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${pathname === '/dashboard/community' ? 'bg-indigo-800 text-white' : 'hover:bg-indigo-800 text-indigo-100'}`}>
-              <MessageSquare size={20} className="text-indigo-400" /> Community Hub
-            </Link>
-            */}
+              <div>
+                <span className="text-sm font-medium text-slate-100 tracking-tight">Prashnix</span>
+                <span className="block text-[11px] text-slate-500 font-normal">Administration</span>
+              </div>
+            </div>
+          </div>
+
+          <nav className="flex-1 px-3 py-4 space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors duration-150 ease-out ${
+                    isActive
+                      ? 'bg-slate-800 text-white font-medium'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Icon size={16} className={isActive ? 'text-slate-200' : 'text-slate-500'} />
+                    <span>{item.label}</span>
+                  </div>
+                  {item.count !== undefined && item.count > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                      {item.count}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
           </nav>
-          <div className="p-4 border-t border-indigo-800">
-            <button onClick={handleSignOut} className="flex items-center gap-3 text-indigo-300 hover:text-white transition-colors w-full px-4 py-2">
-              <LogOut size={20} /> Sign Out
+
+          <div className="p-4 border-t border-slate-850">
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-2.5 text-xs text-slate-400 hover:text-slate-200 transition-colors duration-150 ease-out w-full px-3 py-2 rounded-lg hover:bg-slate-900"
+            >
+              <LogOut size={15} />
+              <span>Sign out</span>
             </button>
           </div>
-        </div>
-        <div className="flex-1 p-8 overflow-auto">
+        </aside>
+
+        {/* Main Content Area */}
+        <main className="flex-1 p-8 overflow-auto">
           {children}
-        </div>
+        </main>
       </div>
     </FeedbackProvider>
   );

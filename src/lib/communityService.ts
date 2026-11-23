@@ -365,7 +365,7 @@ export function validateMessageContent(text: string): { valid: boolean; reason?:
   return { valid: true };
 }
 
-export async function sendCommunityMessage(message: string, username: string = 'Prashnix Admin 🛡️', leagueTier: string = 'champion'): Promise<CommunityMessage> {
+export async function sendCommunityMessage(message: string, username: string = 'Prashnix Admin', leagueTier: string = 'champion'): Promise<CommunityMessage> {
   const validation = validateMessageContent(message);
   if (!validation.valid) {
     throw new Error(validation.reason);
