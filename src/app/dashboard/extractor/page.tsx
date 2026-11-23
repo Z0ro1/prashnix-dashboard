@@ -18,6 +18,7 @@ import {
   RefreshCw,
   X,
   Check,
+  Calendar,
   Calendar as CalendarIcon,
   Clock,
   Trophy,
@@ -657,112 +658,77 @@ export default function SimplifiedPdfExtractorPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-medium text-slate-900 tracking-tight">
+          <h1 className="text-xl font-medium text-slate-900">
             PDF question extraction
           </h1>
-          <p className="text-slate-500 text-sm mt-1 leading-relaxed">
+          <p className="text-slate-500 text-sm mt-1">
             Upload past exam papers to extract multiple-choice questions, verify Devanagari text, and route them to curriculum pools.
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.push('/dashboard/weekly-tests')}
-            className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
-          >
-            <CalendarIcon size={14} className="text-slate-500" />
-            Weekly tests
-          </button>
-        </div>
       </div>
 
-      {/* AI Model Switcher */}
-      <div className="bg-slate-900 text-white p-5 rounded-xl border border-slate-800 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-slate-800 text-slate-300 rounded-lg border border-slate-700/60">
-            <Cpu size={18} />
+      {/* Extraction Configuration Bar */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="text-sm font-medium text-slate-900">
+            Extraction configuration
           </div>
-          <div>
-            <div className="text-sm font-medium text-slate-100">
-              Extraction engine
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Select AI model for optical character extraction and Devanagari formatting.
-            </p>
-          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Select optical character recognition model and extraction scope.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Model Switcher Dropdown */}
-          <div className="flex items-center gap-2 bg-slate-800/90 hover:bg-slate-800 px-3 py-2 rounded-xl border border-slate-700/80 transition-colors shadow-xs">
-            <Sliders size={14} className="text-indigo-400" />
-            <span className="text-xs text-slate-400 font-semibold">Model:</span>
+          {/* Model Selector Dropdown */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-500 font-medium">Model:</label>
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
-              className="bg-transparent text-xs font-bold text-white focus:outline-hidden cursor-pointer pr-1"
+              className="bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 rounded-lg px-2.5 py-1.5 focus:border-slate-400 focus:outline-none cursor-pointer"
             >
-              <option value="gemini-3-flash-preview" className="bg-slate-900 text-white">
-                Gemini 3 Flash (Fastest • 65k Output)
-              </option>
-              <option value="gemini-3.5-flash" className="bg-slate-900 text-white">
-                Gemini 3.5 Flash (Balanced • High Quality)
-              </option>
-              <option value="gemini-3.8-flash" className="bg-slate-900 text-white">
-                Gemini 3.8 Flash (Latest Flagship)
-              </option>
-              <option value="gemini-3.5-flash-lite" className="bg-slate-900 text-white">
-                Gemini 3.5 Flash Lite (Ultra Fast)
-              </option>
-              <option value="gemini-flash-latest" className="bg-slate-900 text-white">
-                Gemini Flash (Stable)
-              </option>
+              <option value="gemini-3-flash-preview">Gemini 3 Flash (Fastest • 65k output)</option>
+              <option value="gemini-3.5-flash">Gemini 3.5 Flash (Balanced • High quality)</option>
+              <option value="gemini-3.8-flash">Gemini 3.8 Flash (Latest flagship)</option>
+              <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (Ultra fast)</option>
+              <option value="gemini-flash-latest">Gemini Flash (Stable)</option>
             </select>
           </div>
 
-          {/* Extraction Mode Switcher: Unlimited Bulk vs Weekly Test Batch */}
-          <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700/80 shadow-xs">
+          {/* Mode Switcher Segmented Control */}
+          <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
             <button
               type="button"
               onClick={() => setExtractionDepth('bulk_unlimited')}
-              className={`px-3.5 py-1.5 text-xs font-extrabold rounded-lg transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
                 extractionDepth === 'bulk_unlimited'
-                  ? 'bg-emerald-500 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-white text-slate-900 font-medium shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 font-normal'
               }`}
-              title="Extract ALL questions across all pages with zero limits (1000+, 2000+ Qs supported via auto-chunking)"
             >
-              <Sparkles size={13} />
-              Unlimited Bulk Extraction (All 1000+ Qs)
+              Full paper
             </button>
             <button
               type="button"
               onClick={() => setExtractionDepth('weekly_test_100')}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
                 extractionDepth === 'weekly_test_100'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-white text-slate-900 font-medium shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 font-normal'
               }`}
-              title="Strict 100 questions mode for quick Weekly Test scheduling"
             >
-              <Trophy size={13} />
-              Weekly Test Mode (100 Qs Only)
+              Weekly test (100 Qs)
             </button>
           </div>
         </div>
       </div>
 
-      {/* Step 1: Drop Bunch of PDFs */}
-      <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-4">
+      {/* Upload Exam Papers */}
+      <div className="bg-white p-6 rounded-xl border border-slate-200 space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
-              1
-            </div>
-            <h2 className="font-extrabold text-gray-900 text-base">Drop Bunch of PDFs</h2>
-          </div>
-          <span className="text-xs text-gray-500 font-medium">
-            Supports multiple exam papers simultaneously (.pdf)
+          <h2 className="font-medium text-slate-900 text-sm">Upload exam papers</h2>
+          <span className="text-xs text-slate-400">
+            Supports multiple PDF papers simultaneously
           </span>
         </div>
 
@@ -778,30 +744,29 @@ export default function SimplifiedPdfExtractorPage() {
         {/* Multi-file Dropzone */}
         <div
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-gray-300 hover:border-indigo-500 hover:bg-indigo-50/40 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all text-center group"
+          className="border border-dashed border-slate-300 hover:border-slate-400 hover:bg-slate-50/50 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-colors text-center group"
         >
-          <div className="p-3.5 bg-gray-100 group-hover:bg-indigo-100 text-gray-500 group-hover:text-indigo-600 rounded-2xl mb-3 transition-colors">
-            <Upload size={32} />
+          <div className="w-10 h-10 bg-slate-100 text-slate-500 rounded-lg flex items-center justify-center mb-3 border border-slate-200">
+            <Upload size={18} />
           </div>
-          <div className="font-extrabold text-gray-800 text-base group-hover:text-indigo-600">
-            Click to choose PDFs or drop bunch of PDFs here
+          <div className="text-sm font-medium text-slate-800">
+            Select PDF files or drag and drop here
           </div>
-          <div className="text-xs text-gray-400 mt-1 max-w-md">
-            Upload single or multiple Police Bharti, MPSC, or Saral Seva question papers. AI will
-            batch-extract all MCQs automatically.
+          <div className="text-xs text-slate-500 mt-1 max-w-md">
+            Upload Police Bharti, MPSC, or Saral Seva question papers to extract MCQs automatically.
           </div>
         </div>
 
         {/* Selected Files Chips List */}
         {pdfFiles.length > 0 && (
           <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between text-xs font-bold text-gray-700">
+            <div className="flex items-center justify-between text-xs font-medium text-slate-700">
               <span>Selected PDFs ({pdfFiles.length} papers ready)</span>
               <button
                 onClick={() => setPdfFiles([])}
-                className="text-rose-600 hover:underline font-semibold"
+                className="text-slate-500 hover:text-red-600 transition-colors"
               >
-                Clear All
+                Clear all
               </button>
             </div>
 
@@ -809,24 +774,24 @@ export default function SimplifiedPdfExtractorPage() {
               {pdfFiles.map((file, idx) => (
                 <div
                   key={`${file.name}_${idx}`}
-                  className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-between gap-2 shadow-2xs"
+                  className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between gap-2"
                 >
                   <div className="flex items-center gap-2.5 truncate">
-                    <div className="p-1.5 bg-indigo-100 text-indigo-700 rounded-lg shrink-0">
-                      <FileText size={16} />
+                    <div className="p-1.5 bg-slate-200 text-slate-700 rounded-md shrink-0">
+                      <FileText size={15} />
                     </div>
                     <div className="truncate">
-                      <div className="font-bold text-gray-900 text-xs truncate">{file.name}</div>
-                      <div className="text-[10px] text-gray-500">
+                      <div className="font-medium text-slate-900 text-xs truncate">{file.name}</div>
+                      <div className="text-[11px] text-slate-500">
                         {(file.size / (1024 * 1024)).toFixed(2)} MB
                       </div>
                     </div>
                   </div>
                   <button
                     onClick={() => handleRemoveFile(idx)}
-                    className="p-1 text-gray-400 hover:text-rose-600 rounded-lg shrink-0"
+                    className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors shrink-0"
                   >
-                    <X size={15} />
+                    <X size={14} />
                   </button>
                 </div>
               ))}
@@ -837,21 +802,16 @@ export default function SimplifiedPdfExtractorPage() {
               <button
                 onClick={handleStartBatchExtraction}
                 disabled={isExtracting}
-                className={`px-6 py-3 rounded-xl text-sm font-extrabold flex items-center gap-2.5 transition-all shadow-md ${
-                  isExtracting
-                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
-                }`}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
               >
                 {isExtracting ? (
                   <>
-                    <RefreshCw size={17} className="animate-spin" />
-                    Extracting Questions...
+                    <RefreshCw size={15} className="animate-spin" />
+                    Extracting questions...
                   </>
                 ) : (
                   <>
-                    <Sparkles size={17} />
-                    Extract & Clean All {pdfFiles.length} PDF(s)
+                    Extract questions ({pdfFiles.length} {pdfFiles.length === 1 ? 'paper' : 'papers'})
                   </>
                 )}
               </button>
@@ -860,116 +820,108 @@ export default function SimplifiedPdfExtractorPage() {
         )}
       </div>
 
-      {/* Real-time Detailed Extraction Pipeline & Step Dashboard */}
+      {/* Real-time Detailed Extraction Pipeline */}
       {isExtracting && (
-        <div className="bg-white border-2 border-indigo-400/80 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 duration-200">
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-5">
           {/* Top Info Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
-            <div className="flex items-center gap-3.5">
-              <div className="relative">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-                  <Cpu
-                    size={24}
-                    className="animate-spin text-indigo-100"
-                    style={{ animationDuration: '3s' }}
-                  />
-                </div>
-                <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
-                </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center text-white shrink-0">
+                <Cpu size={16} />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-gray-900 text-base">
-                    AI Question Extraction Pipeline Active
+                  <h3 className="font-medium text-slate-900 text-sm">
+                    Question extraction pipeline active
                   </h3>
-                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 animate-pulse">
+                  <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
                     Live
                   </span>
                 </div>
-                <p className="text-xs text-indigo-700 font-semibold mt-0.5 flex items-center gap-1.5">
+                <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
                   <span>File {currentFileIdx + 1} of {pdfFiles.length}:</span>
-                  <span className="font-mono text-gray-800 font-bold underline decoration-indigo-300">
+                  <span className="font-mono text-slate-800 font-medium">
                     {pdfFiles[currentFileIdx]?.name || 'Exam Paper'}
                   </span>
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 self-start sm:self-auto">
-              <div className="px-3 py-1.5 bg-gray-900 text-indigo-300 border border-gray-800 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 shadow-xs">
-                <Clock size={14} className="text-emerald-400 animate-pulse" />
+            <div className="flex items-center gap-2.5 self-start sm:self-auto">
+              <div className="px-2.5 py-1 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-mono flex items-center gap-1.5">
+                <Clock size={13} className="text-slate-500" />
                 <span>
                   Elapsed: {Math.floor(elapsedSeconds / 60).toString().padStart(2, '0')}:
                   {(elapsedSeconds % 60).toString().padStart(2, '0')}s
                 </span>
               </div>
-              <div className="text-sm font-mono font-extrabold text-indigo-900 px-3.5 py-1.5 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center gap-1">
+              <div className="text-xs font-mono font-medium text-slate-900 px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg">
                 <span>{progressPercent}%</span>
               </div>
             </div>
           </div>
 
-          {/* Animated Gradient Progress Bar */}
+          {/* Progress Bar */}
           <div className="space-y-1.5">
-            <div className="flex justify-between text-xs font-bold text-gray-600 px-1">
+            <div className="flex justify-between text-xs text-slate-600 px-0.5">
               <span>{processingStatus}</span>
-              <span className="font-mono text-indigo-600">{progressPercent}% Completed</span>
+              <span className="font-mono text-slate-700">{progressPercent}% completed</span>
             </div>
-            <div className="w-full bg-gray-100 rounded-full h-3.5 overflow-hidden p-0.5 border border-gray-200 shadow-inner">
+            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
               <div
-                className="bg-gradient-to-r from-indigo-600 via-purple-600 to-emerald-500 h-full rounded-full transition-all duration-500 ease-out shadow-sm"
+                className="bg-slate-900 h-full rounded-full transition-all duration-300"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
           </div>
 
           {/* 6-Step Visual Pipeline Stepper */}
-          <div className="space-y-2.5">
-            <div className="text-xs font-extrabold uppercase tracking-wider text-gray-500 flex items-center justify-between">
-              <span>Extraction Pipeline Steps</span>
-              <span className="text-[11px] font-bold text-indigo-600">Step {currentStep} of 6</span>
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-slate-600 flex items-center justify-between">
+              <span>Pipeline steps</span>
+              <span className="text-xs text-slate-500">Step {currentStep} of 6</span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
               {[
                 { id: 1, title: '1. Ingest PDF', desc: 'Binary stream' },
                 { id: 2, title: '2. Page Slicing', desc: 'Auto-chunks' },
-                { id: 3, title: '3. Multi-Chunk AI', desc: 'Zero limits' },
-                { id: 4, title: '4. 4 Options & Key', desc: 'A, B, C, D values' },
-                { id: 5, title: '5. स्पष्टीकरण Synthesis', desc: 'Verified 1-liners' },
-                { id: 6, title: '6. Ready for Use', desc: 'Curriculum/Weekly' },
+                { id: 3, title: '3. Multi-Chunk AI', desc: 'Batch extraction' },
+                { id: 4, title: '4. 4 Options & Key', desc: 'Parsed options' },
+                { id: 5, title: '5. Explanation', desc: 'Marathi summary' },
+                { id: 6, title: '6. Ready for Use', desc: 'Verified set' },
               ].map((step) => {
                 const isPassed = currentStep > step.id;
                 const isCurrent = currentStep === step.id;
                 return (
                   <div
                     key={step.id}
-                    className={`p-3 rounded-xl border text-left transition-all ${
+                    className={`p-2.5 rounded-lg border text-left transition-colors ${
                       isPassed
-                        ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+                        ? 'bg-slate-50 border-slate-200 text-slate-800'
                         : isCurrent
-                        ? 'bg-indigo-50 border-indigo-400 ring-2 ring-indigo-200 text-indigo-950 shadow-sm'
-                        : 'bg-gray-50/60 border-gray-200 text-gray-400'
+                        ? 'bg-slate-900 border-slate-900 text-white'
+                        : 'bg-white border-slate-200 text-slate-400'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-bold font-mono">
+                      <span className="text-[11px] font-medium font-mono">
                         {isPassed ? (
-                          <span className="flex items-center gap-1 text-emerald-700">
-                            <CheckCircle2 size={13} className="text-emerald-600" /> Done
+                          <span className="flex items-center gap-1 text-slate-700">
+                            <CheckCircle2 size={12} className="text-slate-600" /> Done
                           </span>
                         ) : isCurrent ? (
-                          <span className="flex items-center gap-1 text-indigo-700 animate-pulse">
-                            <RefreshCw size={12} className="animate-spin" /> In Progress
+                          <span className="flex items-center gap-1 text-white">
+                            <RefreshCw size={11} className="animate-spin" /> In progress
                           </span>
                         ) : (
-                          <span className="text-gray-400">Waiting</span>
+                          <span className="text-slate-400">Waiting</span>
                         )}
                       </span>
                     </div>
-                    <div className="font-extrabold text-xs truncate">{step.title}</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5 truncate">{step.desc}</div>
+                    <div className="font-medium text-xs truncate">{step.title}</div>
+                    <div className={`text-[10px] mt-0.5 truncate ${isCurrent ? 'text-slate-300' : 'text-slate-400'}`}>
+                      {step.desc}
+                    </div>
                   </div>
                 );
               })}
@@ -977,32 +929,25 @@ export default function SimplifiedPdfExtractorPage() {
           </div>
 
           {/* Live Pipeline Activity Console / Terminal */}
-          <div className="bg-slate-950 text-slate-200 rounded-2xl p-4 font-mono text-xs shadow-inner border border-slate-800 space-y-2">
+          <div className="bg-slate-950 text-slate-200 rounded-xl p-4 font-mono text-xs border border-slate-800 space-y-2">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-slate-400">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block"></span>
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block"></span>
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block"></span>
-                </div>
-                <span className="text-[11px] font-bold text-slate-300 ml-1 flex items-center gap-1.5">
-                  <Terminal size={13} className="text-indigo-400" />
-                  pipeline.activity.log
-                </span>
-              </div>
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-sans font-bold">
-                {selectedModel} • {extractionDepth === 'bulk_unlimited' ? 'Unlimited Bulk Mode' : 'Weekly Test 100-Q Mode'}
+              <span className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+                <Terminal size={13} className="text-slate-400" />
+                pipeline.log
+              </span>
+              <span className="text-[10px] text-slate-500 font-sans">
+                {selectedModel} • {extractionDepth === 'bulk_unlimited' ? 'Full paper mode' : 'Weekly test (100 Qs)'}
               </span>
             </div>
 
-            <div className="max-h-36 overflow-y-auto space-y-1.5 pt-1 pr-1 font-mono text-[11px]">
+            <div className="max-h-36 overflow-y-auto space-y-1.5 pt-1 pr-1 font-mono text-xs">
               {pipelineLogs.map((log, lIdx) => (
                 <div key={lIdx} className="flex items-start gap-2 leading-relaxed">
                   <span className="text-slate-500 shrink-0 select-none">[{log.time}]</span>
                   <span
                     className={
                       log.type === 'success'
-                        ? 'text-emerald-400 font-semibold'
+                        ? 'text-emerald-400 font-medium'
                         : log.type === 'warn'
                         ? 'text-amber-400'
                         : 'text-slate-200'
@@ -1012,10 +957,6 @@ export default function SimplifiedPdfExtractorPage() {
                   </span>
                 </div>
               ))}
-              <div className="flex items-center gap-1 text-indigo-400 pt-0.5">
-                <span className="animate-pulse">▶</span>
-                <span className="animate-pulse font-bold">_</span>
-              </div>
             </div>
           </div>
         </div>
@@ -1023,79 +964,75 @@ export default function SimplifiedPdfExtractorPage() {
 
       {/* Extracted Results & Action Hub */}
       {extractedQuestions.length > 0 && !isExtracting && (
-        <div className="space-y-6 animate-in fade-in duration-300">
-          {/* Quick Metrics Bar & 2 Primary Options Requested by User */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-5">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+        <div className="space-y-6">
+          {/* Quick Metrics Bar & Actions */}
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100 text-center min-w-[110px]">
-                  <div className="text-[10px] font-bold text-indigo-600 uppercase">Questions</div>
-                  <div className="text-2xl font-extrabold text-indigo-950 mt-0.5">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center min-w-[110px]">
+                  <div className="text-xs text-slate-500">Questions</div>
+                  <div className="text-xl font-medium text-slate-900 mt-0.5">
                     {extractedQuestions.length}
                   </div>
-                  <div className="text-[10px] text-indigo-700 font-medium">Clean Marathi Qs</div>
+                  <div className="text-[11px] text-slate-400">Total extracted</div>
                 </div>
 
-                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-center min-w-[120px]">
-                  <div className="text-[10px] font-bold text-emerald-600 uppercase">25-Q Lessons</div>
-                  <div className="text-2xl font-extrabold text-emerald-950 mt-0.5">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center min-w-[120px]">
+                  <div className="text-xs text-slate-500">25-Q lessons</div>
+                  <div className="text-xl font-medium text-slate-900 mt-0.5">
                     {fullLessonsCount}
                   </div>
-                  <div className="text-[10px] text-emerald-700 font-medium">
+                  <div className="text-[11px] text-slate-400">
                     {fullLessonsCount * 25} Qs
                   </div>
                 </div>
 
-                <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-center min-w-[130px]">
-                  <div className="text-[10px] font-bold text-amber-700 uppercase">Weekly Test (100 Qs)</div>
-                  <div className="text-sm font-extrabold text-amber-950 mt-1">
-                    {extractedQuestions.length >= 100 ? '100 Qs Ready' : `${extractedQuestions.length}/100 Qs`}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center min-w-[130px]">
+                  <div className="text-xs text-slate-500">Weekly test</div>
+                  <div className="text-xl font-medium text-slate-900 mt-0.5">
+                    {extractedQuestions.length >= 100 ? '100 ready' : `${extractedQuestions.length}/100`}
                   </div>
+                  <div className="text-[11px] text-slate-400">Quota status</div>
                 </div>
               </div>
 
-              {/* The 2 Clear Primary Buttons Requested by User + Auto Set All */}
-              <div className="flex flex-wrap items-center gap-2.5">
+              {/* Actions */}
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={handleAutoSetToCurriculum}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium flex items-center gap-2 transition-colors"
+                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium flex items-center gap-2 transition-colors"
                 >
-                  Auto set to AI builder curriculum
+                  Auto set to curriculum
                 </button>
 
                 <button
                   onClick={handleDownloadCsv}
-                  className="px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-800 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors"
+                  className="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
                 >
-                  <Download size={15} />
-                  Download CSV File
+                  <Download size={14} />
+                  Download CSV
                 </button>
 
                 <button
                   onClick={handleAutoSetAll}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-md transition-all shadow-emerald-200"
+                  className="px-3.5 py-2 bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
                   title="Auto Set All questions into the chosen destination with 1 click"
                 >
-                  <Check size={16} />
-                  Auto Set All
+                  <Check size={14} />
+                  Auto set all
                 </button>
               </div>
             </div>
 
-            {/* 2nd Section: Lesson & Organization Mode (Lesson OR Weekly Test) */}
+            {/* Destination Mode */}
             <div className="space-y-4 pt-1">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
-                  2
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-gray-900 text-base">
-                    Lesson & Organize Destination
-                  </h3>
-                  <p className="text-xs text-gray-500">
-                    Set whether these questions will go into a standard 25-Q Lesson or an official 100-Mark Weekly Test.
-                  </p>
-                </div>
+              <div>
+                <h3 className="font-medium text-slate-900 text-sm">
+                  Destination target
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Route questions to standard 25-question lessons or an official 100-mark weekly test.
+                </p>
               </div>
 
               {/* Segmented Switch */}
@@ -1103,26 +1040,26 @@ export default function SimplifiedPdfExtractorPage() {
                 <button
                   type="button"
                   onClick={() => setDestinationMode('curriculum')}
-                  className={`p-4 rounded-2xl border text-left flex items-start gap-3 transition-all ${
+                  className={`p-4 rounded-xl border text-left flex items-start gap-3 transition-colors ${
                     destinationMode === 'curriculum'
-                      ? 'bg-indigo-50/80 border-indigo-400 ring-2 ring-indigo-500/20 shadow-xs'
-                      : 'bg-gray-50 border-gray-200 hover:border-gray-300 opacity-80'
+                      ? 'bg-slate-50 border-slate-900 ring-1 ring-slate-900'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
                   <div
-                    className={`p-2 rounded-xl shrink-0 ${
+                    className={`p-2 rounded-lg shrink-0 ${
                       destinationMode === 'curriculum'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-200 text-gray-600'
+                        ? 'bg-slate-900 text-white'
+                        : 'bg-slate-100 text-slate-600'
                     }`}
                   >
-                    <BookOpen size={18} />
+                    <BookOpen size={16} />
                   </div>
                   <div>
-                    <div className="font-bold text-gray-900 text-xs">
-                      Curriculum Lessons (25 Qs/Lesson)
+                    <div className="font-medium text-slate-900 text-xs">
+                      Curriculum lessons (25 Qs/lesson)
                     </div>
-                    <div className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">
+                    <div className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
                       Partitions into strict 25-question lessons per learning node.
                     </div>
                   </div>
@@ -1131,26 +1068,26 @@ export default function SimplifiedPdfExtractorPage() {
                 <button
                   type="button"
                   onClick={() => setDestinationMode('weekly_test')}
-                  className={`p-4 rounded-2xl border text-left flex items-start gap-3 transition-all ${
+                  className={`p-4 rounded-xl border text-left flex items-start gap-3 transition-colors ${
                     destinationMode === 'weekly_test'
-                      ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-500/20 shadow-xs'
-                      : 'bg-gray-50 border-gray-200 hover:border-gray-300 opacity-80'
+                      ? 'bg-slate-50 border-slate-900 ring-1 ring-slate-900'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
                   <div
-                    className={`p-2 rounded-xl shrink-0 ${
+                    className={`p-2 rounded-lg shrink-0 ${
                       destinationMode === 'weekly_test'
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-gray-200 text-gray-600'
+                        ? 'bg-slate-900 text-white'
+                        : 'bg-slate-100 text-slate-600'
                     }`}
                   >
-                    <Trophy size={18} />
+                    <Calendar size={16} />
                   </div>
                   <div>
-                    <div className="font-bold text-gray-900 text-xs">
-                      Official Weekly Test (100 Questions)
+                    <div className="font-medium text-slate-900 text-xs">
+                      Official weekly test (100 questions)
                     </div>
-                    <div className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">
+                    <div className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
                       Schedules a 100-mark mock test with date & calendar on Supabase.
                     </div>
                   </div>
@@ -1159,31 +1096,31 @@ export default function SimplifiedPdfExtractorPage() {
 
               {/* Destination 1 Details: Curriculum Lessons */}
               {destinationMode === 'curriculum' && (
-                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-3 animate-in fade-in duration-200">
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-800 font-bold">
-                          Auto-Chunking Strategy (8x5x25 Rule)
+                        <span className="text-xs text-slate-800 font-medium">
+                          Auto-chunking strategy (8x5x25 rule)
                         </span>
-                        <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                          ✓ Enforced
+                        <span className="text-[10px] font-medium bg-slate-200 text-slate-700 px-2 py-0.5 rounded">
+                          Enforced
                         </span>
                       </div>
-                      <div className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                         <span>
-                          <strong>{Math.max(1, Math.ceil(extractedQuestions.length / 1000))}</strong> Unit(s) (max 8 nodes)
+                          <strong>{Math.max(1, Math.ceil(extractedQuestions.length / 1000))}</strong> unit(s)
                         </span>
                         <span>•</span>
                         <span>
-                          <strong>{Math.max(1, Math.ceil(extractedQuestions.length / 125))}</strong> Node(s) (max 5 lessons)
+                          <strong>{Math.max(1, Math.ceil(extractedQuestions.length / 125))}</strong> node(s)
                         </span>
                         <span>•</span>
                         <span>
-                          <strong>{fullLessonsCount}</strong> Lessons (25 Qs each)
+                          <strong>{fullLessonsCount}</strong> lessons (25 Qs each)
                         </span>
                         {leftoverCount > 0 && (
-                          <span className="text-amber-600 font-medium">
+                          <span className="text-amber-700 font-medium">
                             ({leftoverCount} leftover Qs)
                           </span>
                         )}
@@ -1191,36 +1128,35 @@ export default function SimplifiedPdfExtractorPage() {
                     </div>
                     <button
                       onClick={handleAutoSetToCurriculum}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs shrink-0"
+                      className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors shrink-0"
                     >
-                      <Sparkles size={14} />
-                      Set to Curriculum Builder
+                      Set to curriculum builder
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Destination 2 Details: Weekly Test (Strict 100 Questions & Calendar Picker) */}
+              {/* Destination 2 Details: Weekly Test */}
               {destinationMode === 'weekly_test' && (
-                <div className="p-5 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-4 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between pb-3 border-b border-emerald-200/60">
+                <div className="p-5 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                     <div className="flex items-center gap-2">
-                      <Trophy size={18} className="text-emerald-700" />
-                      <span className="font-extrabold text-emerald-950 text-sm">
-                        Schedule Official 100-Mark Weekly Test
+                      <Calendar size={16} className="text-slate-600" />
+                      <span className="font-medium text-slate-900 text-sm">
+                        Schedule official 100-mark weekly test
                       </span>
                     </div>
 
                     {/* Strict 100 Questions Validator */}
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-extrabold ${
+                      className={`px-2.5 py-0.5 rounded text-xs font-medium ${
                         extractedQuestions.length >= 100
-                          ? 'bg-emerald-200 text-emerald-900 border border-emerald-300'
-                          : 'bg-rose-100 text-rose-800 border border-rose-300'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : 'bg-rose-100 text-rose-800 border border-rose-200'
                       }`}
                     >
                       {extractedQuestions.length >= 100
-                        ? `${extractedQuestions.length} Qs available (Strict 100 used)`
+                        ? `${extractedQuestions.length} Qs available (100 used)`
                         : `Need 100 Qs (Current: ${extractedQuestions.length}/100)`}
                     </span>
                   </div>
@@ -1233,17 +1169,17 @@ export default function SimplifiedPdfExtractorPage() {
                         <select
                           value={weeklyTestSetIndex}
                           onChange={(e) => setWeeklyTestSetIndex(Number(e.target.value))}
-                          className="px-3 py-1.5 bg-emerald-50 border border-emerald-300 rounded-lg font-bold text-emerald-900 outline-none cursor-pointer"
+                          className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 outline-none cursor-pointer"
                         >
                           {Array.from({ length: Math.floor(extractedQuestions.length / 100) }).map((_, idx) => (
                             <option key={idx} value={idx}>
-                              Set {idx + 1}: Questions {idx * 100 + 1} to {(idx + 1) * 100} (100 Questions)
+                              Set {idx + 1}: Questions {idx * 100 + 1} to {(idx + 1) * 100}
                             </option>
                           ))}
                         </select>
                       </div>
-                      <div className="text-[11px] text-gray-500 font-medium">
-                        Using questions {weeklyTestSetIndex * 100 + 1} to {(weeklyTestSetIndex + 1) * 100} of {extractedQuestions.length} total
+                      <div className="text-[11px] text-slate-500">
+                        Using questions {weeklyTestSetIndex * 100 + 1} to {(weeklyTestSetIndex + 1) * 100} of {extractedQuestions.length}
                       </div>
                     </div>
                   )}
@@ -1252,23 +1188,23 @@ export default function SimplifiedPdfExtractorPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                     {/* Title */}
                     <div className="sm:col-span-2">
-                      <label className="font-bold text-gray-700 block mb-1">Weekly Test Title</label>
+                      <label className="font-medium text-slate-700 block mb-1">Weekly test title</label>
                       <input
                         type="text"
                         value={testTitle}
                         onChange={(e) => setTestTitle(e.target.value)}
                         placeholder="उदा. महाराष्ट्र पोलीस भरती साप्ताहिक महासराव चाचणी"
-                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl font-semibold text-gray-900 outline-none"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 outline-none focus:border-slate-400 text-xs"
                       />
                     </div>
 
                     {/* Category */}
                     <div>
-                      <label className="font-bold text-gray-700 block mb-1">Exam Category</label>
+                      <label className="font-medium text-slate-700 block mb-1">Exam category</label>
                       <select
                         value={examType}
                         onChange={(e) => setExamType(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl font-semibold text-gray-800 outline-none"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 outline-none focus:border-slate-400 text-xs"
                       >
                         {EXAM_TYPES.map((t) => (
                           <option key={t} value={t}>
@@ -1280,24 +1216,24 @@ export default function SimplifiedPdfExtractorPage() {
 
                     {/* Date Picker (Calendar) */}
                     <div>
-                      <label className="font-bold text-gray-700 block mb-1 flex items-center gap-1">
-                        <CalendarIcon size={13} className="text-emerald-600" />
-                        Test Date (Calendar)
+                      <label className="font-medium text-slate-700 block mb-1 flex items-center gap-1">
+                        <CalendarIcon size={13} className="text-slate-500" />
+                        Test date
                       </label>
                       <input
                         type="date"
                         value={scheduledDate}
                         onChange={(e) => setScheduledDate(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl font-semibold text-gray-900 outline-none"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 outline-none focus:border-slate-400 text-xs"
                       />
                     </div>
                   </div>
 
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-                    <div className="text-xs text-gray-600 flex items-center gap-2">
-                      <Clock size={14} className="text-emerald-700 shrink-0" />
+                    <div className="text-xs text-slate-500 flex items-center gap-2">
+                      <Clock size={13} className="text-slate-500 shrink-0" />
                       <span>
-                        Starts at <strong>{scheduledTime}</strong> • Duration: <strong>{durationMinutes} Mins</strong> • 100 Marks
+                        Starts at <strong>{scheduledTime}</strong> • Duration: <strong>{durationMinutes} mins</strong> • 100 marks
                       </span>
                     </div>
 
@@ -1305,21 +1241,16 @@ export default function SimplifiedPdfExtractorPage() {
                     <button
                       onClick={handlePublishWeeklyTestToSupabase}
                       disabled={isPublishingWeeklyTest || extractedQuestions.length < 100}
-                      className={`px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-sm ${
-                        isPublishingWeeklyTest || extractedQuestions.length < 100
-                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                          : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200'
-                      }`}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg text-xs font-medium flex items-center gap-2 transition-colors"
                     >
                       {isPublishingWeeklyTest ? (
                         <>
-                          <RefreshCw size={14} className="animate-spin" />
-                          Publishing to Supabase...
+                          <RefreshCw size={13} className="animate-spin" />
+                          Publishing test...
                         </>
                       ) : (
                         <>
-                          <Trophy size={14} />
-                          Add Weekly Test to Supabase (100 Qs)
+                          Publish weekly test (100 Qs)
                         </>
                       )}
                     </button>
@@ -1330,7 +1261,7 @@ export default function SimplifiedPdfExtractorPage() {
           </div>
 
           {/* Extracted Questions Review Accordion */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <button
               onClick={() => setShowQuestionsList(!showQuestionsList)}
               className="w-full p-4 bg-gray-50/70 hover:bg-gray-100/70 flex items-center justify-between text-xs font-bold text-gray-800 transition-colors"
@@ -1418,26 +1349,26 @@ export default function SimplifiedPdfExtractorPage() {
 
       {/* Inline Edit Modal */}
       {editingQuestion && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl border border-gray-100 flex flex-col max-h-[90vh]">
-            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-              <span className="font-bold text-gray-900 text-xs">
-                Edit Question #{editingQuestion.rowIndex}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-xl w-full max-w-xl overflow-hidden shadow-xl border border-slate-200 flex flex-col max-h-[90vh]">
+            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <span className="font-medium text-slate-900 text-xs">
+                Edit question #{editingQuestion.rowIndex}
               </span>
-              <button onClick={() => setEditingQuestion(null)} className="p-1 text-gray-400">
-                <X size={16} />
+              <button onClick={() => setEditingQuestion(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                <X size={15} />
               </button>
             </div>
             <div className="p-5 overflow-y-auto space-y-3 text-xs">
               <div>
-                <label className="font-bold text-gray-700 block mb-1">Question Text</label>
+                <label className="font-medium text-slate-700 block mb-1">Question text</label>
                 <textarea
                   value={editingQuestion.questionText}
                   onChange={(e) =>
                     setEditingQuestion({ ...editingQuestion, questionText: e.target.value })
                   }
                   rows={3}
-                  className="w-full px-3 py-2 border rounded-xl"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-900 focus:border-slate-400 outline-none text-xs"
                 />
               </div>
 
@@ -1446,14 +1377,14 @@ export default function SimplifiedPdfExtractorPage() {
                 const isCorrect = editingQuestion.correctOption === letter;
                 return (
                   <div key={letter} className="flex items-center gap-2">
-                    <span className="w-6 font-bold text-gray-600">{letter})</span>
+                    <span className="w-5 font-medium text-slate-600">{letter})</span>
                     <input
                       type="text"
                       value={String(editingQuestion[key] || '')}
                       onChange={(e) =>
                         setEditingQuestion({ ...editingQuestion, [key]: e.target.value })
                       }
-                      className="flex-1 px-3 py-1.5 border rounded-lg"
+                      className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-slate-900 focus:border-slate-400 outline-none text-xs"
                     />
                     <button
                       type="button"
@@ -1464,33 +1395,33 @@ export default function SimplifiedPdfExtractorPage() {
                           correctAnswer: String(editingQuestion[key] || ''),
                         })
                       }
-                      className={`px-2.5 py-1 text-[10px] font-bold rounded ${
-                        isCorrect ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'
+                      className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
+                        isCorrect ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
-                      {isCorrect ? '✓ Correct' : 'Set'}
+                      {isCorrect ? 'Correct' : 'Set'}
                     </button>
                   </div>
                 );
               })}
 
               <div>
-                <label className="font-bold text-gray-700 block mb-1">Explanation (स्पष्टीकरण)</label>
+                <label className="font-medium text-slate-700 block mb-1">Explanation (स्पष्टीकरण)</label>
                 <textarea
                   value={editingQuestion.explanation}
                   onChange={(e) =>
                     setEditingQuestion({ ...editingQuestion, explanation: e.target.value })
                   }
                   rows={2}
-                  className="w-full px-3 py-2 border rounded-xl"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-900 focus:border-slate-400 outline-none text-xs"
                 />
               </div>
             </div>
 
-            <div className="px-5 py-3 bg-gray-50 border-t flex justify-end gap-2">
+            <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
               <button
                 onClick={() => setEditingQuestion(null)}
-                className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg"
+                className="px-3 py-1.5 text-xs text-slate-600 hover:text-slate-900 rounded-lg"
               >
                 Cancel
               </button>
@@ -1500,9 +1431,9 @@ export default function SimplifiedPdfExtractorPage() {
                     prev.map((q) => (q.id === editingQuestion.id ? editingQuestion : q))
                   );
                   setEditingQuestion(null);
-                  toast('success', 'Question Saved', 'Updated successfully.');
+                  toast('success', 'Question saved', 'Updated successfully.');
                 }}
-                className="px-4 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg"
+                className="px-4 py-1.5 text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-colors"
               >
                 Save
               </button>
